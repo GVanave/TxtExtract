@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from .extractor import ExtractionError, ReceiptExtractor
+from .settings import load_env
 
 
 def main(argv: list[str] | None = None, extractor: ReceiptExtractor | None = None) -> int:
@@ -19,6 +20,7 @@ def main(argv: list[str] | None = None, extractor: ReceiptExtractor | None = Non
     parser.add_argument("--out", type=Path, help="Write the JSON here instead of printing it.")
     parser.add_argument("--model", help="Gemini model (default: $GEMINI_MODEL or gemini-2.5-flash).")
     args = parser.parse_args(argv)
+    load_env()
 
     if not args.image.is_file():
         print(f"error: file not found: {args.image}", file=sys.stderr)

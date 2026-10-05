@@ -9,12 +9,17 @@ from datetime import date
 import altair as alt
 import pandas as pd
 import streamlit as st
+from dotenv import set_key
 
 from receipt_extractor import ExtractionError, LineType, validate_receipt
 from receipt_extractor import analytics as an
 from receipt_extractor import app_support as support
 from receipt_extractor.extractor import DEFAULT_MODEL, MIME_TYPES
+from receipt_extractor.settings import PACKAGE_ROOT, env_api_key, load_env
 from receipt_extractor.store import ReceiptStore
+
+load_env()  # GEMINI_API_KEY / GEMINI_MODEL / RECEIPTS_DB from receipts/.env, if present
+ENV_FILE = PACKAGE_ROOT / ".env"
 
 st.set_page_config(page_title="Kassenbon", page_icon="🧾", layout="wide")
 
@@ -56,8 +61,13 @@ def get_store() -> ReceiptStore:
 
 
 @st.cache_resource(show_spinner=False)
-def get_extractor(model: str):
-    return support.build_extractor(model)
+def get_extractor(model: str, api_key: str):
+    return support.build_extractor(model, api_key)
+
+
+def current_api_key() -> tuple[str | None, str]:
+    """(key, source): the key typed in the sidebar wins over .env / the environment."""
+    return support.resolve_api_key(st.session_state.get("api_key_input"), env_api_key())
 
 
 def header(title: str, subtitle: str) -> None:
@@ -92,9 +102,11 @@ def items_column_config() -> dict:
 def scan_page() -> None:
     header("Scan a receipt", "Upload or photograph a German supermarket receipt. Gemini reads it, you check it, then save.")
 
-    if not (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")) and "draft" not in st.session_state:
+    api_key, _ = current_api_key()
+    if not api_key and "draft" not in st.session_state:
         st.info(
-            "Set `GEMINI_API_KEY` before starting the app to extract receipts (get one at https://aistudio.google.com/apikey).",
+            "Add your Gemini API key to extract receipts: paste it in the sidebar, or put `GEMINI_API_KEY=...` "
+            "in `receipts/.env`. Get a free key at https://aistudio.google.com/apikey.",
             icon="🔑",
         )
 
@@ -120,7 +132,7 @@ def scan_page() -> None:
         show_image(source.getvalue(), source.type, source.name)
     with right:
         st.markdown(f"**{source.name}**  \n{len(source.getvalue()) / 1024:.0f} KB")
-        if st.button("Extract receipt", type="primary", icon="✨", width="stretch"):
+        if st.button("Extract receipt", type="primary", icon="✨", width="stretch", disabled=not api_key):
             extract(source.getvalue(), source.type or "image/jpeg", source.name)
 
 
@@ -136,9 +148,10 @@ def show_image(data: bytes, mime_type: str | None, name: str) -> None:
 
 def extract(data: bytes, mime_type: str, name: str) -> None:
     model = st.session_state.get("model", DEFAULT_MODEL)
+    api_key, _ = current_api_key()
     with st.spinner("Reading the receipt…"):
         try:
-            result = get_extractor(model).extract(data, mime_type)
+            result = get_extractor(model, api_key or "").extract(data, mime_type)
         except ExtractionError as exc:
             st.error(f"Could not read this receipt: {exc}", icon="⚠️")
             return
@@ -436,11 +449,32 @@ def sidebar() -> None:
         st.markdown("## 🧾 Kassenbon")
         st.caption("Receipt scanner & spending tracker")
         st.text_input("Gemini model", value=os.environ.get("GEMINI_MODEL") or DEFAULT_MODEL, key="model")
-        key_set = bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"))
-        st.caption(
-            ("🟢 API key found" if key_set else "🔴 No GEMINI_API_KEY set") + f" · data in `{get_store().path.name}`",
-            help=str(get_store().path.resolve()),
-        )
+        api_key_section()
+        st.caption(f"Data in `{get_store().path.name}`", help=str(get_store().path.resolve()))
+
+
+def api_key_section() -> None:
+    has_env_key = bool(env_api_key())
+    st.text_input(
+        "Gemini API key",
+        type="password",
+        key="api_key_input",
+        placeholder="Paste to override .env" if has_env_key else "Paste your key",
+        help="A key entered here is used for this browser session only and is not saved, "
+        "unless you click 'Save to .env'. Get one at https://aistudio.google.com/apikey.",
+    )
+    _, source = current_api_key()
+    if source == "entered":
+        st.caption("🟢 Using the key entered above")
+        if st.button("Save to .env", icon="💾", help=f"Writes GEMINI_API_KEY to {ENV_FILE} (git-ignored)."):
+            entered = st.session_state["api_key_input"].strip()
+            set_key(str(ENV_FILE), "GEMINI_API_KEY", entered, quote_mode="never")
+            os.environ["GEMINI_API_KEY"] = entered
+            st.toast("Key saved to receipts/.env. It loads automatically next time.", icon="💾")
+    elif source == "env":
+        st.caption("🟢 Using the key from .env / environment")
+    else:
+        st.caption("🔴 No API key: paste one above or add it to `receipts/.env`")
 
 
 def main() -> None:

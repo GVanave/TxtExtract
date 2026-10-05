@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .prompt import EXTRACTION_PROMPT, RETRY_NOTE
 from .schema import Receipt
+from .settings import env_api_key
 from .validation import ValidationResult, validate_receipt
 
 DEFAULT_MODEL = "gemini-2.5-flash"
@@ -53,12 +54,14 @@ def mime_type_for(path: Path) -> str:
 
 
 class ReceiptExtractor:
-    def __init__(self, client=None, model: str | None = None, max_attempts: int = 2):
+    def __init__(self, client=None, model: str | None = None, max_attempts: int = 2, api_key: str | None = None):
         if client is None:
             from google import genai
 
-            # Reads GEMINI_API_KEY (or GOOGLE_API_KEY) from the environment.
-            client = genai.Client()
+            api_key = api_key or env_api_key()
+            if not api_key:
+                raise ExtractionError("No Gemini API key. Set GEMINI_API_KEY in your environment or .env file.")
+            client = genai.Client(api_key=api_key)
         self.client = client
         self.model = model or os.environ.get("GEMINI_MODEL") or DEFAULT_MODEL
         self.max_attempts = max_attempts

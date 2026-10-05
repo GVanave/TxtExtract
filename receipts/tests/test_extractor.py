@@ -177,3 +177,37 @@ def test_api_error_becomes_extraction_error():
     client = SimpleNamespace(models=FailingModels())
     with pytest.raises(ExtractionError, match="API key not valid"):
         ReceiptExtractor(client=client, model="m").extract(b"img", "image/jpeg")
+
+
+def test_missing_api_key_raises_clear_error(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    with pytest.raises(ExtractionError, match="No Gemini API key"):
+        ReceiptExtractor()
+
+
+def test_api_key_argument_is_passed_to_client(monkeypatch):
+    from google import genai
+
+    seen = {}
+    monkeypatch.setattr(genai, "Client", lambda api_key: seen.setdefault("api_key", api_key))
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    ReceiptExtractor(api_key="abc")
+    assert seen["api_key"] == "abc"
+
+
+def test_load_env_reads_dotenv_without_overriding_shell(tmp_path, monkeypatch):
+    from receipt_extractor import settings
+
+    (tmp_path / ".env").write_text("GEMINI_API_KEY=from-file\nGEMINI_MODEL=file-model\n", encoding="utf-8")
+    monkeypatch.setattr(settings, "PACKAGE_ROOT", tmp_path)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setenv("GEMINI_MODEL", "shell-model")
+
+    assert settings.load_env() == [tmp_path / ".env"]
+    assert settings.env_api_key() == "from-file"
+    import os
+
+    assert os.environ["GEMINI_MODEL"] == "shell-model"
+    monkeypatch.delenv("GEMINI_API_KEY")  # load_dotenv set it outside monkeypatch

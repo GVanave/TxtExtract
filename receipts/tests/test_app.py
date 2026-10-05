@@ -8,7 +8,7 @@ import pytest
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
-from receipt_extractor import LineItem, LineType, Receipt, ReceiptExtractor
+from receipt_extractor import LineItem, LineType, Receipt, ReceiptExtractor, settings
 from receipt_extractor import app_support as support
 from receipt_extractor.store import ReceiptStore
 
@@ -58,11 +58,16 @@ class FakeModels:
 def app(tmp_path, monkeypatch):
     monkeypatch.setenv("RECEIPTS_DB", str(tmp_path / "app.db"))
     monkeypatch.setenv("GEMINI_API_KEY", "test")
+    # Never pick up a developer's real receipts/.env during tests.
+    monkeypatch.setattr(settings, "PACKAGE_ROOT", tmp_path)
+    monkeypatch.chdir(tmp_path)
     st.cache_resource.clear()
 
     def use(*receipts):
         client = SimpleNamespace(models=FakeModels(receipts))
-        monkeypatch.setattr(support, "build_extractor", lambda model: ReceiptExtractor(client=client, model="fake-model"))
+        monkeypatch.setattr(
+            support, "build_extractor", lambda model, api_key=None: ReceiptExtractor(client=client, model="fake-model")
+        )
 
     yield use
     st.cache_resource.clear()
@@ -205,3 +210,57 @@ def test_euro_formatting():
     assert support.euro(1234.5) == "1.234,50 €"
     assert support.euro(-0.3) == "-0,30 €"
     assert support.euro(None) == "–"
+
+
+def test_sidebar_without_key_asks_for_one(app, monkeypatch):
+    app()
+    monkeypatch.delenv("GEMINI_API_KEY")
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    at = run()
+    assert not at.exception
+    assert "Add your Gemini API key" in at.info[0].value
+    assert any("No API key" in c.value for c in at.sidebar.caption)
+
+
+def test_sidebar_key_from_env(app):
+    app()
+    at = run()
+    assert any("key from .env" in c.value for c in at.sidebar.caption)
+    assert not at.info  # no "add your key" prompt
+
+
+def test_key_entered_in_sidebar_is_used(app, monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY")
+    seen = {}
+
+    def fake_build(model, api_key=None):
+        seen["api_key"] = api_key
+        client = SimpleNamespace(models=FakeModels([GOOD]))
+        return ReceiptExtractor(client=client, model="fake-model")
+
+    monkeypatch.setattr(support, "build_extractor", fake_build)
+    at = run()
+    at.text_input(key="api_key_input").input("typed-key").run()
+    assert not at.exception
+    assert any("key entered above" in c.value for c in at.sidebar.caption)
+    assert not at.info
+
+    # The extract step reads the same session key.
+    at = AppTest.from_string(
+        f"""
+import runpy, streamlit as st
+st.session_state["api_key_input"] = "typed-key"
+mod = runpy.run_path({APP!r}, run_name="kassenbon")
+if "draft" not in st.session_state:
+    mod["extract"](b"img", "image/png", "bon.png")
+""",
+        default_timeout=30,
+    ).run()
+    assert not at.exception
+    assert seen["api_key"] == "typed-key"
+
+
+def test_resolve_api_key():
+    assert support.resolve_api_key(" typed ", "env") == ("typed", "entered")
+    assert support.resolve_api_key("", "env") == ("env", "env")
+    assert support.resolve_api_key(None, None) == (None, "missing")

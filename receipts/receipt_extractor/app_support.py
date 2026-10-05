@@ -11,8 +11,18 @@ from .schema import LineItem, LineType, Receipt
 ITEM_COLUMNS = ["raw_text", "name", "line_type", "quantity", "unit", "unit_price", "total_price", "vat_code"]
 
 
-def build_extractor(model: str | None) -> ReceiptExtractor:
-    return ReceiptExtractor(model=model or None)
+def build_extractor(model: str | None, api_key: str | None = None) -> ReceiptExtractor:
+    return ReceiptExtractor(model=model or None, api_key=api_key or None)
+
+
+def resolve_api_key(entered: str | None, from_env: str | None) -> tuple[str | None, str]:
+    """The key to use and where it came from. A key typed in the app wins over .env / the environment."""
+    entered = (entered or "").strip()
+    if entered:
+        return entered, "entered"
+    if from_env:
+        return from_env, "env"
+    return None, "missing"
 
 
 def _clean(value):

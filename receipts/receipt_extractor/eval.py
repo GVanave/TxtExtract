@@ -20,6 +20,7 @@ from pathlib import Path
 from .evaluation import HEADER_FIELDS, ITEM_FIELDS, ReceiptScore, score_receipt, summarize
 from .extractor import MIME_TYPES, ExtractionError, ReceiptExtractor
 from .schema import Receipt
+from .settings import load_env
 
 EXPECTED_SUFFIX = ".expected.json"
 
@@ -89,6 +90,7 @@ def main(argv: list[str] | None = None, extractor: ReceiptExtractor | None = Non
     parser.add_argument("--draft-missing", action="store_true", help="Write the prediction as <name>.expected.json when missing.")
     parser.add_argument("--only", help="Only evaluate samples whose file name contains this text.")
     args = parser.parse_args(argv)
+    load_env()
 
     if not args.samples.is_dir():
         print(f"error: not a folder: {args.samples}", file=sys.stderr)

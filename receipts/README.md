@@ -24,9 +24,16 @@ result is returned with `validation.ok = false` so you can review it instead of 
 cd receipts
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
-export GEMINI_API_KEY=your-key          # from https://aistudio.google.com/apikey
-export GEMINI_MODEL=gemini-2.5-flash    # optional, this is the default
+cp .env.example .env                    # then put your key in .env: GEMINI_API_KEY=...
 ```
+
+Get a free key at https://aistudio.google.com/apikey. The key is read from, in order of priority:
+
+1. **The Streamlit sidebar**: paste it into "Gemini API key". Used for that browser session only, unless you
+   click **Save to .env**.
+2. **Your shell**: `export GEMINI_API_KEY=...`
+3. **`receipts/.env`** (or a `.env` in the folder you run from), loaded automatically by the app, the CLI and
+   the eval. `.env` is git-ignored, so the key never gets committed.
 
 ## Web app (Streamlit)
 
