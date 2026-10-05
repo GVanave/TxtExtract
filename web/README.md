@@ -80,11 +80,15 @@ You need a Google account, a [Vercel](https://vercel.com) account linked to GitH
    | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | from step 2 |
    | `ALLOWED_EMAILS` | your Gmail address (comma-separate several) |
    | `NEXTAUTH_SECRET` | output of `openssl rand -base64 32` |
+   | `NEXTAUTH_URL` | your fixed Vercel domain, e.g. `https://txtextract-web.vercel.app` (from the project's **Domains**) |
    | `GOOGLE_SHEET_ID` | from step 4 |
    | `GOOGLE_SERVICE_ACCOUNT_EMAIL` | `client_email` from the JSON key |
    | `GOOGLE_PRIVATE_KEY` | `private_key` from the JSON key, pasted as is (with `-----BEGIN PRIVATE KEY-----`) |
 
-4. **Deploy**. Then put the final URL into the OAuth client's redirect URIs (step 2.3) if you haven't yet.
+   If Vercel picks **Application Preset: Services**, change it to **Next.js**.
+4. **Deploy**. Then make sure `NEXTAUTH_URL` is your fixed domain and that
+   `<NEXTAUTH_URL>/api/auth/callback/google` is in the OAuth client's redirect URIs (step 2.3). After changing
+   environment variables, **Redeploy**.
 5. Open the app on your phone → browser menu → **Add to Home Screen** to use it like an app.
 
 Every push to the branch you deployed redeploys automatically.
@@ -94,7 +98,7 @@ Every push to the branch you deployed redeploys automatically.
 | Message | Fix |
 |---------|-----|
 | "This Google account is not allowed" | Add the address to `ALLOWED_EMAILS` and redeploy. |
-| Google says `redirect_uri_mismatch` | The exact `https://…/api/auth/callback/google` URL must be in the OAuth client. |
+| Google says `redirect_uri_mismatch` | Set `NEXTAUTH_URL` to your fixed domain, redeploy, and add exactly `<NEXTAUTH_URL>/api/auth/callback/google` to the OAuth client. Google's "error details" link shows the URI that was sent. |
 | "Google Sheets refused access (403)" | Share the sheet with the service account email as Editor; check `GOOGLE_SHEET_ID`. |
 | "Gemini is busy or rate-limited" | Google is overloaded; try again or set `GEMINI_FALLBACK_MODEL`. |
 | "No usable Gemini model … not available (404)" | Google retired the model name; use the replacement the message suggests. |
