@@ -11,8 +11,9 @@ from .schema import LineItem, LineType, Receipt
 ITEM_COLUMNS = ["raw_text", "name", "line_type", "quantity", "unit", "unit_price", "total_price", "vat_code"]
 
 
-def build_extractor(model: str | None, api_key: str | None = None) -> ReceiptExtractor:
-    return ReceiptExtractor(model=model or None, api_key=api_key or None)
+def build_extractor(model: str | None, api_key: str | None = None, fallback: str | None = None) -> ReceiptExtractor:
+    fallback_models = [m.strip() for m in (fallback or "").split(",") if m.strip()]
+    return ReceiptExtractor(model=model or None, api_key=api_key or None, fallback_models=fallback_models)
 
 
 def resolve_api_key(entered: str | None, from_env: str | None) -> tuple[str | None, str]:

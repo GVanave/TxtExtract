@@ -66,7 +66,9 @@ def app(tmp_path, monkeypatch):
     def use(*receipts):
         client = SimpleNamespace(models=FakeModels(receipts))
         monkeypatch.setattr(
-            support, "build_extractor", lambda model, api_key=None: ReceiptExtractor(client=client, model="fake-model")
+            support,
+            "build_extractor",
+            lambda model, api_key=None, fallback=None: ReceiptExtractor(client=client, model="fake-model"),
         )
 
     yield use
@@ -233,7 +235,7 @@ def test_key_entered_in_sidebar_is_used(app, monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY")
     seen = {}
 
-    def fake_build(model, api_key=None):
+    def fake_build(model, api_key=None, fallback=None):
         seen["api_key"] = api_key
         client = SimpleNamespace(models=FakeModels([GOOD]))
         return ReceiptExtractor(client=client, model="fake-model")

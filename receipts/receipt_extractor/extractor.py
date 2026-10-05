@@ -1,6 +1,8 @@
 """Receipt image -> structured Receipt, using a single Gemini vision call (plus one retry on failed checks)."""
 
 import os
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -10,6 +12,10 @@ from .settings import env_api_key
 from .validation import ValidationResult, validate_receipt
 
 DEFAULT_MODEL = "gemini-2.5-flash"
+
+# Errors worth retrying: rate limit, and Google-side overload/outage ("model is experiencing high demand").
+TRANSIENT_CODES = {429, 500, 502, 503, 504}
+RETRY_DELAYS = (2, 5, 10)  # seconds between attempts on the same model
 
 MIME_TYPES = {
     ".jpg": "image/jpeg",
@@ -54,7 +60,17 @@ def mime_type_for(path: Path) -> str:
 
 
 class ReceiptExtractor:
-    def __init__(self, client=None, model: str | None = None, max_attempts: int = 2, api_key: str | None = None):
+    def __init__(
+        self,
+        client=None,
+        model: str | None = None,
+        max_attempts: int = 2,
+        api_key: str | None = None,
+        fallback_models: list[str] | None = None,
+        retry_delays: tuple[float, ...] = RETRY_DELAYS,
+        on_retry: Callable[[str, int, float, int], None] | None = None,
+        sleep: Callable[[float], None] = time.sleep,
+    ):
         if client is None:
             from google import genai
 
@@ -65,6 +81,12 @@ class ReceiptExtractor:
         self.client = client
         self.model = model or os.environ.get("GEMINI_MODEL") or DEFAULT_MODEL
         self.max_attempts = max_attempts
+        if fallback_models is None:
+            fallback_models = [m.strip() for m in os.environ.get("GEMINI_FALLBACK_MODEL", "").split(",") if m.strip()]
+        self.fallback_models = [m for m in fallback_models if m != self.model]
+        self.retry_delays = retry_delays
+        self.on_retry = on_retry  # called as on_retry(model, attempt, delay_seconds, error_code) before each wait
+        self.sleep = sleep
 
     def extract_file(self, path: str | Path) -> ExtractionResult:
         path = Path(path)
@@ -78,9 +100,9 @@ class ReceiptExtractor:
         best: ExtractionResult | None = None
         prompt = EXTRACTION_PROMPT
         for attempt in range(1, self.max_attempts + 1):
-            receipt = self._call_model(data, mime_type, prompt)
+            receipt, used_model = self._call_model(data, mime_type, prompt)
             validation = validate_receipt(receipt)
-            result = ExtractionResult(receipt=receipt, validation=validation, model=self.model, attempts=attempt)
+            result = ExtractionResult(receipt=receipt, validation=validation, model=used_model, attempts=attempt)
             if validation.ok:
                 return result
             if best is None or len(validation.issues) < len(best.validation.issues):
@@ -90,22 +112,49 @@ class ReceiptExtractor:
         best.attempts = self.max_attempts
         return best
 
-    def _call_model(self, data: bytes, mime_type: str, prompt: str) -> Receipt:
-        from google.genai import errors, types
+    def _call_model(self, data: bytes, mime_type: str, prompt: str) -> tuple[Receipt, str]:
+        """One reading of the receipt. Retries Google-side errors, then tries the fallback models in order."""
+        from google.genai import errors
 
-        try:
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=[types.Part.from_bytes(data=data, mime_type=mime_type), prompt],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=Receipt,
-                    temperature=0,
-                    automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-                ),
-            )
-        except errors.APIError as exc:
-            raise ExtractionError(f"Gemini API error {exc.code}: {exc.message}") from exc
+        failures = []
+        for model in [self.model, *self.fallback_models]:
+            for attempt in range(1, len(self.retry_delays) + 2):
+                try:
+                    return self._parse(self._generate(model, data, mime_type, prompt)), model
+                except errors.APIError as exc:
+                    if exc.code not in TRANSIENT_CODES:
+                        raise ExtractionError(f"Gemini API error {exc.code} ({model}): {exc.message}") from exc
+                    if attempt > len(self.retry_delays):
+                        failures.append(f"{model}: {exc.code} after {attempt} tries")
+                        break
+                    delay = self.retry_delays[attempt - 1]
+                    if self.on_retry:
+                        self.on_retry(model, attempt, delay, exc.code)
+                    self.sleep(delay)
+
+        hint = (
+            "Try again in a minute, choose another Gemini model"
+            + ("" if self.fallback_models else ", or set GEMINI_FALLBACK_MODEL so a second model is tried automatically")
+            + "."
+        )
+        raise ExtractionError(f"Gemini is busy or rate-limited ({'; '.join(failures)}). {hint}")
+
+    def _generate(self, model: str, data: bytes, mime_type: str, prompt: str):
+        from google.genai import types
+
+        return self.client.models.generate_content(
+            model=model,
+            contents=[types.Part.from_bytes(data=data, mime_type=mime_type), prompt],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=Receipt,
+                temperature=0,
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+            ),
+        )
+
+    @staticmethod
+    def _parse(response) -> Receipt:
         parsed = getattr(response, "parsed", None)
         if isinstance(parsed, Receipt):
             return parsed

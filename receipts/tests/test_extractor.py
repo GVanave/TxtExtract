@@ -211,3 +211,93 @@ def test_load_env_reads_dotenv_without_overriding_shell(tmp_path, monkeypatch):
 
     assert os.environ["GEMINI_MODEL"] == "shell-model"
     monkeypatch.delenv("GEMINI_API_KEY")  # load_dotenv set it outside monkeypatch
+
+
+# --- Google-side errors: retry with backoff, then fallback models ------------------------------------------
+
+
+def api_error(code, message="This model is currently experiencing high demand."):
+    from google.genai import errors
+
+    cls = errors.ClientError if code < 500 else errors.ServerError
+    return cls(code, {"error": {"code": code, "message": message, "status": "UNAVAILABLE"}})
+
+
+class ScriptedModels:
+    """Raises or returns per call, recording which model was asked."""
+
+    def __init__(self, outcomes):
+        self.outcomes = list(outcomes)
+        self.models = []
+
+    def generate_content(self, *, model, contents, config):
+        self.models.append(model)
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+
+def scripted_extractor(outcomes, **kwargs):
+    models = ScriptedModels(outcomes)
+    sleeps, retries = [], []
+    extractor = ReceiptExtractor(
+        client=SimpleNamespace(models=models),
+        model="main-model",
+        sleep=sleeps.append,
+        on_retry=lambda *args: retries.append(args),
+        **kwargs,
+    )
+    return extractor, models, sleeps, retries
+
+
+def test_retries_503_then_succeeds(monkeypatch):
+    monkeypatch.delenv("GEMINI_FALLBACK_MODEL", raising=False)
+    extractor, models, sleeps, retries = scripted_extractor([api_error(503), api_error(503), parsed(receipt_json())])
+    result = extractor.extract(b"img", "image/jpeg")
+
+    assert result.receipt.store_name == "ALDI SÜD"
+    assert result.model == "main-model"
+    assert sleeps == [2, 5]
+    assert retries == [("main-model", 1, 2, 503), ("main-model", 2, 5, 503)]
+
+
+def test_falls_back_to_second_model_when_main_stays_busy():
+    outcomes = [api_error(503)] * 4 + [parsed(receipt_json())]
+    extractor, models, sleeps, _ = scripted_extractor(outcomes, fallback_models=["backup-model"])
+    result = extractor.extract(b"img", "image/jpeg")
+
+    assert models.models == ["main-model"] * 4 + ["backup-model"]
+    assert result.model == "backup-model"
+    assert sleeps == [2, 5, 10]
+
+
+def test_gives_clear_error_when_everything_is_busy():
+    outcomes = [api_error(503)] * 4 + [api_error(429, "Quota exceeded")] * 4
+    extractor, models, _, _ = scripted_extractor(outcomes, fallback_models=["backup-model"])
+    with pytest.raises(ExtractionError, match="busy or rate-limited") as exc:
+        extractor.extract(b"img", "image/jpeg")
+    assert "main-model: 503 after 4 tries" in str(exc.value)
+    assert "backup-model: 429 after 4 tries" in str(exc.value)
+    assert len(models.models) == 8
+
+
+def test_error_suggests_fallback_when_none_configured(monkeypatch):
+    monkeypatch.delenv("GEMINI_FALLBACK_MODEL", raising=False)
+    extractor, _, _, _ = scripted_extractor([api_error(503)] * 4)
+    with pytest.raises(ExtractionError, match="set GEMINI_FALLBACK_MODEL"):
+        extractor.extract(b"img", "image/jpeg")
+
+
+def test_permanent_errors_are_not_retried():
+    extractor, models, sleeps, _ = scripted_extractor([api_error(404, "model not found")], fallback_models=["backup"])
+    with pytest.raises(ExtractionError, match="404 \\(main-model\\): model not found"):
+        extractor.extract(b"img", "image/jpeg")
+    assert sleeps == []
+    assert models.models == ["main-model"]
+
+
+def test_fallback_models_from_environment(monkeypatch):
+    monkeypatch.setenv("GEMINI_FALLBACK_MODEL", "a-model, b-model, main-model")
+    extractor, _, _, _ = scripted_extractor([])
+    assert extractor.fallback_models == ["a-model", "b-model"]

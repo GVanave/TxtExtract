@@ -61,8 +61,8 @@ def get_store() -> ReceiptStore:
 
 
 @st.cache_resource(show_spinner=False)
-def get_extractor(model: str, api_key: str):
-    return support.build_extractor(model, api_key)
+def get_extractor(model: str, api_key: str, fallback: str):
+    return support.build_extractor(model, api_key, fallback)
 
 
 def current_api_key() -> tuple[str | None, str]:
@@ -148,11 +148,21 @@ def show_image(data: bytes, mime_type: str | None, name: str) -> None:
 
 def extract(data: bytes, mime_type: str, name: str) -> None:
     model = st.session_state.get("model", DEFAULT_MODEL)
+    fallback = st.session_state.get("fallback_model", "")
     api_key, _ = current_api_key()
+    notice = st.empty()
+
+    def show_retry(model_name: str, attempt: int, delay: float, code: int) -> None:
+        reason = "rate limit reached" if code == 429 else "Google's servers are busy"
+        notice.info(f"Gemini `{model_name}`: {reason} ({code}). Retrying in {delay:g}s (retry {attempt})…", icon="⏳")
+
     with st.spinner("Reading the receipt…"):
         try:
-            result = get_extractor(model, api_key or "").extract(data, mime_type)
+            extractor = get_extractor(model, api_key or "", fallback)
+            extractor.on_retry = show_retry
+            result = extractor.extract(data, mime_type)
         except ExtractionError as exc:
+            notice.empty()
             st.error(f"Could not read this receipt: {exc}", icon="⚠️")
             return
         except Exception as exc:  # missing API key, network problems
@@ -449,6 +459,14 @@ def sidebar() -> None:
         st.markdown("## 🧾 Kassenbon")
         st.caption("Receipt scanner & spending tracker")
         st.text_input("Gemini model", value=os.environ.get("GEMINI_MODEL") or DEFAULT_MODEL, key="model")
+        st.text_input(
+            "Fallback model (optional)",
+            value=os.environ.get("GEMINI_FALLBACK_MODEL", ""),
+            key="fallback_model",
+            placeholder="e.g. gemini-2.5-flash-lite",
+            help="Tried automatically if the main model stays busy (503) or rate-limited (429) after 3 retries. "
+            "Comma-separate several models.",
+        )
         api_key_section()
         st.caption(f"Data in `{get_store().path.name}`", help=str(get_store().path.resolve()))
 
