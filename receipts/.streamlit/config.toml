@@ -1,0 +1,19 @@
+[theme]
+font = "sans serif"
+baseRadius = "medium"
+
+# Defining both lets the app follow the device's light/dark setting.
+[theme.light]
+primaryColor = "#0f766e"
+
+[theme.dark]
+primaryColor = "#2dd4bf"
+
+[client]
+toolbarMode = "minimal"
+
+[server]
+maxUploadSize = 20
+
+[browser]
+gatherUsageStats = false

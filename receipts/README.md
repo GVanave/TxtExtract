@@ -28,7 +28,32 @@ export GEMINI_API_KEY=your-key          # from https://aistudio.google.com/apike
 export GEMINI_MODEL=gemini-2.5-flash    # optional, this is the default
 ```
 
-## Usage
+## Web app (Streamlit)
+
+```bash
+streamlit run app.py        # run from the receipts/ folder, then open http://localhost:8501
+```
+
+| Page | What it does |
+|------|--------------|
+| **Scan** | Upload a photo/PDF or use the camera → Gemini extracts it → correct any field or line in an editable table, with the total check updating live → save (or "save for review" if checks fail). Warns about duplicates. |
+| **Receipts** | All saved receipts, filter by store or "needs review", select one to see its lines, delete. |
+| **Spending** | This month vs last month, spend per month and per store, top products, discounts saved and open Pfand. |
+
+Receipts are stored in SQLite at `data/receipts.db` (git-ignored; change with `RECEIPTS_DB`). The app follows your
+device's light/dark setting.
+
+![Review a scanned receipt](docs/scan-review.png)
+![Spending dashboard](docs/spending.png)
+
+<details><summary>More screenshots</summary>
+
+![Receipts list](docs/receipts.png)
+![Spending dashboard, dark mode](docs/spending-dark.png)
+
+</details>
+
+## Command line
 
 ```bash
 python -m receipt_extractor bon.jpg               # print JSON
