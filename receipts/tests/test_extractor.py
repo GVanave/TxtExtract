@@ -290,11 +290,36 @@ def test_error_suggests_fallback_when_none_configured(monkeypatch):
 
 
 def test_permanent_errors_are_not_retried():
-    extractor, models, sleeps, _ = scripted_extractor([api_error(404, "model not found")], fallback_models=["backup"])
-    with pytest.raises(ExtractionError, match="404 \\(main-model\\): model not found"):
+    extractor, models, sleeps, _ = scripted_extractor([api_error(403, "API key not valid")], fallback_models=["backup"])
+    with pytest.raises(ExtractionError, match="403 \\(main-model\\): API key not valid"):
         extractor.extract(b"img", "image/jpeg")
     assert sleeps == []
     assert models.models == ["main-model"]
+
+
+def test_retired_model_moves_on_to_fallback_without_retrying():
+    retired = api_error(404, "This model models/main-model is no longer available to new users.")
+    extractor, models, sleeps, _ = scripted_extractor([retired, parsed(receipt_json())], fallback_models=["backup"])
+    result = extractor.extract(b"img", "image/jpeg")
+    assert models.models == ["main-model", "backup"]
+    assert result.model == "backup"
+    assert sleeps == []
+
+
+def test_busy_main_and_retired_fallback_reports_both():
+    outcomes = [api_error(503)] * 4 + [api_error(404, "no longer available to new users")]
+    extractor, _, _, _ = scripted_extractor(outcomes, fallback_models=["old-lite"])
+    with pytest.raises(ExtractionError) as exc:
+        extractor.extract(b"img", "image/jpeg")
+    message = str(exc.value)
+    assert "main-model: 503 after 4 tries" in message
+    assert "old-lite: not available (404). no longer available to new users" in message
+
+
+def test_only_retired_models_asks_to_change_model_name():
+    extractor, _, _, _ = scripted_extractor([api_error(404, "gone")], fallback_models=[])
+    with pytest.raises(ExtractionError, match="No usable Gemini model.*Change the model name"):
+        extractor.extract(b"img", "image/jpeg")
 
 
 def test_fallback_models_from_environment(monkeypatch):

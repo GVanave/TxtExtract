@@ -17,7 +17,11 @@ Gemini only reads the receipt. The maths is checked in plain Python (`validation
 
 If Google's side is overloaded (503 "model is experiencing high demand") or rate-limited (429), the call is
 retried after 2, 5 and 10 seconds, then the optional fallback model(s) from `GEMINI_FALLBACK_MODEL` (or the
-sidebar) are tried. Other API errors (bad key, unknown model) fail immediately with a clear message.
+sidebar) are tried. A model Google has retired or doesn't know (404) is skipped and the next fallback is
+tried. Other API errors (e.g. an invalid key) fail immediately with a clear message.
+
+Google retires model names regularly. If you get "no longer available", put the replacement name from the
+error message into the sidebar or `.env`.
 
 If a check fails, Gemini is asked once more with the list of problems. If the second reading still fails, the
 result is returned with `validation.ok = false` so you can review it instead of trusting wrong numbers.

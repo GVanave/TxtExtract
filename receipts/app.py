@@ -463,7 +463,7 @@ def sidebar() -> None:
             "Fallback model (optional)",
             value=os.environ.get("GEMINI_FALLBACK_MODEL", ""),
             key="fallback_model",
-            placeholder="e.g. gemini-2.5-flash-lite",
+            placeholder="e.g. gemini-3.5-flash-lite",
             help="Tried automatically if the main model stays busy (503) or rate-limited (429) after 3 retries. "
             "Comma-separate several models.",
         )

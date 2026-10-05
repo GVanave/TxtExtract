@@ -113,15 +113,22 @@ class ReceiptExtractor:
         return best
 
     def _call_model(self, data: bytes, mime_type: str, prompt: str) -> tuple[Receipt, str]:
-        """One reading of the receipt. Retries Google-side errors, then tries the fallback models in order."""
+        """One reading of the receipt.
+
+        Busy/rate-limit errors are retried with backoff; a busy, retired or unknown model (404) moves on to the
+        next fallback model. Other errors (bad key, bad request) fail immediately.
+        """
         from google.genai import errors
 
-        failures = []
+        failures, unavailable = [], []
         for model in [self.model, *self.fallback_models]:
             for attempt in range(1, len(self.retry_delays) + 2):
                 try:
                     return self._parse(self._generate(model, data, mime_type, prompt)), model
                 except errors.APIError as exc:
+                    if exc.code == 404:
+                        unavailable.append(f"{model}: not available (404). {exc.message}")
+                        break
                     if exc.code not in TRANSIENT_CODES:
                         raise ExtractionError(f"Gemini API error {exc.code} ({model}): {exc.message}") from exc
                     if attempt > len(self.retry_delays):
@@ -132,12 +139,19 @@ class ReceiptExtractor:
                         self.on_retry(model, attempt, delay, exc.code)
                     self.sleep(delay)
 
+        if unavailable and not failures:
+            raise ExtractionError(
+                "No usable Gemini model. "
+                + " ".join(unavailable)
+                + " Change the model name in the sidebar or in GEMINI_MODEL / GEMINI_FALLBACK_MODEL in .env."
+            )
         hint = (
             "Try again in a minute, choose another Gemini model"
             + ("" if self.fallback_models else ", or set GEMINI_FALLBACK_MODEL so a second model is tried automatically")
             + "."
         )
-        raise ExtractionError(f"Gemini is busy or rate-limited ({'; '.join(failures)}). {hint}")
+        details = "; ".join(failures + unavailable)
+        raise ExtractionError(f"Gemini is busy or rate-limited ({details}). {hint}")
 
     def _generate(self, model: str, data: bytes, mime_type: str, prompt: str):
         from google.genai import types
