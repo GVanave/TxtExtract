@@ -47,3 +47,9 @@ uvicorn main:app --reload
 2. `call_gemini`: one schema-constrained call per page, temperature 0, one retry
 3. `validate`: drop or clamp bad boxes
 4. `extract`: runs all steps and returns JSON for downstream processing
+
+## Kassenbon web app (`web/`)
+
+[`web/`](web/README.md) holds **Kassenbon**, the receipt tracker: scan a supermarket receipt on your phone, Gemini
+reads it, and the app shows your spending per month and per category. It is a Next.js app on Vercel with a
+free Neon Postgres database. Setup steps are in [`web/README.md`](web/README.md).
