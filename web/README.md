@@ -20,6 +20,7 @@ page), that choice is used automatically the next time the same product appears:
 otherwise from any shop. It is marked "remembered".
 
 Only the Google accounts you list in `ALLOWED_EMAILS` can sign in; each account sees only its own receipts.
+Before inviting anyone else, complete the privacy checklist in [`docs/datenschutz-plan.md`](docs/datenschutz-plan.md).
 
 ## How it works
 
