@@ -5,10 +5,11 @@ import { useState } from "react";
 
 import { Spinner, TrashIcon } from "@/components/icons";
 import { button, Notice } from "@/components/ui";
+import { UNDO_KEY } from "@/components/deleted-undo";
 
+/** Deletes at once (no "are you sure?"); the receipts list then offers "Rückgängig" for a few seconds. */
 export function DeleteButton({ id }: { id: string }) {
   const router = useRouter();
-  const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -16,35 +17,27 @@ export function DeleteButton({ id }: { id: string }) {
     setBusy(true);
     setError(null);
     const response = await fetch(`/api/receipts/${encodeURIComponent(id)}`, { method: "DELETE" });
-    if (response.ok) {
-      router.push("/receipts");
+    const body = (await response.json().catch(() => null)) as { deleted?: unknown; error?: string } | null;
+    if (response.ok && body?.deleted) {
+      try {
+        sessionStorage.setItem(UNDO_KEY, JSON.stringify(body.deleted));
+      } catch {
+        // No storage (private mode): deleting still works, only undo is not offered.
+      }
+      router.push("/receipts?geloescht=1");
       router.refresh();
       return;
     }
-    const body = await response.json().catch(() => null);
-    setError((body as { error?: string } | null)?.error ?? "Could not delete the receipt.");
+    setError(body?.error ?? "Löschen hat nicht geklappt. Bitte versuche es noch einmal.");
     setBusy(false);
   }
 
-  if (!confirming) {
-    return (
-      <button type="button" className={button.ghost} onClick={() => setConfirming(true)}>
-        <TrashIcon size={16} /> Delete receipt
-      </button>
-    );
-  }
   return (
-    <div className="space-y-3 rounded-xl border border-danger/30 bg-danger-soft p-4">
-      <p className="text-sm">Delete this receipt and all its lines? This can&apos;t be undone.</p>
-      {error && <Notice tone="danger" title="Delete failed">{error}</Notice>}
-      <div className="flex gap-2">
-        <button type="button" className={button.danger} disabled={busy} onClick={remove}>
-          {busy ? <Spinner size={16} /> : <TrashIcon size={16} />} Yes, delete
-        </button>
-        <button type="button" className={button.secondary} disabled={busy} onClick={() => setConfirming(false)}>
-          Cancel
-        </button>
-      </div>
+    <div className="space-y-3">
+      {error && <Notice tone="danger" title="Nicht gelöscht">{error}</Notice>}
+      <button type="button" className={button.secondary} disabled={busy} onClick={remove}>
+        {busy ? <Spinner size={18} /> : <TrashIcon size={18} />} Einkauf löschen
+      </button>
     </div>
   );
 }

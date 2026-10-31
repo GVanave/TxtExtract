@@ -1,4 +1,4 @@
-import { LINE_TYPE_LABELS, LINE_TYPES, type LineItem, type LineType, type Receipt } from "../receipt";
+import { LINE_TYPES, type LineItem, type LineType, type Receipt } from "../receipt";
 
 /**
  * The old Google Sheets layout (Receipts and Items tabs), kept only to import existing data into the database.
@@ -81,7 +81,7 @@ export function itemsToRows(r: SavedReceipt): Row[] {
     index + 1,
     item.raw_text,
     item.name,
-    LINE_TYPE_LABELS[item.line_type],
+    SHEET_LABELS[item.line_type],
     blank(item.quantity),
     blank(item.unit),
     blank(item.unit_price),
@@ -105,10 +105,19 @@ export function toNumber(value: unknown): number | null {
   return Number.isFinite(number) ? number : null;
 }
 
+/** The labels the old Google Sheet used (English); kept fixed so old sheets still import after the UI went German. */
+const SHEET_LABELS: Record<LineType, string> = {
+  product: "Product",
+  deposit: "Pfand",
+  deposit_return: "Leergut",
+  discount: "Discount",
+  other: "Other",
+};
+
 const LABEL_TO_TYPE = new Map<string, LineType>(
   LINE_TYPES.flatMap((type) => [
     [type, type],
-    [LINE_TYPE_LABELS[type].toLowerCase(), type],
+    [SHEET_LABELS[type].toLowerCase(), type],
   ]),
 );
 

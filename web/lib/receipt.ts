@@ -6,11 +6,11 @@ export const LINE_TYPES = ["product", "deposit", "deposit_return", "discount", "
 export type LineType = (typeof LINE_TYPES)[number];
 
 export const LINE_TYPE_LABELS: Record<LineType, string> = {
-  product: "Product",
+  product: "Produkt",
   deposit: "Pfand",
   deposit_return: "Leergut",
-  discount: "Discount",
-  other: "Other",
+  discount: "Rabatt",
+  other: "Sonstiges",
 };
 
 const money = z.number().finite();
@@ -69,3 +69,16 @@ export type SavedReceipt = Omit<Receipt, "line_items"> & {
   model: string | null;
   image_name: string | null;
 };
+
+/** A saved receipt sent back by the browser to undo a delete. */
+export const savedReceiptSchema = receiptSchema.extend({
+  id: z.string().uuid(),
+  store_id: z.string(),
+  store_raw: z.string(),
+  saved_at: z.string().datetime(),
+  needs_review: z.boolean(),
+  issues: z.array(z.string()),
+  model: z.string().nullable(),
+  image_name: z.string().nullable(),
+  line_items: z.array(lineItemSchema.extend({ id: z.string().uuid() })),
+});

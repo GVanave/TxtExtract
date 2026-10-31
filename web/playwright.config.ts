@@ -15,6 +15,8 @@ export default defineConfig({
   reporter: "list",
   use: {
     baseURL: `http://localhost:${PORT}`,
+    locale: "de-DE",
+    timezoneId: "Europe/Berlin",
     launchOptions: { executablePath, args: ["--no-proxy-server"] },
     trace: "retain-on-failure",
   },

@@ -15,7 +15,7 @@ describe("validateReceipt", () => {
 
   it("flags a total mismatch", () => {
     const issues = validateReceipt(receipt(LIDL_ITEMS, { total: 9.99 }));
-    expect(issues).toEqual(["Line items add up to 2.33 EUR but the receipt total is 9.99 EUR."]);
+    expect(issues).toEqual(["Die Preise ergeben zusammen 2,33\u00a0€, auf dem Kassenbon steht aber 9,99\u00a0€."]);
   });
 
   it("flags quantity x unit price mismatches but tolerates weighed rounding", () => {
@@ -25,14 +25,14 @@ describe("validateReceipt", () => {
 
   it("checks the VAT table against the total", () => {
     const vat = [{ code: "B", rate_percent: 7, net: null, vat: null, gross: 9.99 }];
-    expect(validateReceipt(receipt([item("MILCH", 1.19)], { vat_summary: vat }))[0]).toContain("VAT table");
+    expect(validateReceipt(receipt([item("MILCH", 1.19)], { vat_summary: vat }))[0]).toContain("MwSt.-Übersicht");
     const ok = [{ code: "B", rate_percent: 7, net: 1.11, vat: 0.08, gross: 1.19 }];
     expect(validateReceipt(receipt([item("MILCH", 1.19)], { vat_summary: ok }))).toEqual([]);
   });
 
   it("flags empty receipts and invalid dates", () => {
-    expect(validateReceipt(receipt([], { total: 0 }))).toEqual(["No line items were extracted."]);
-    expect(validateReceipt(receipt(LIDL_ITEMS, { date: "28.09.2026" }))[0]).toContain("Date");
+    expect(validateReceipt(receipt([], { total: 0 }))).toEqual(["Es wurden keine Produkte erkannt."]);
+    expect(validateReceipt(receipt(LIDL_ITEMS, { date: "28.09.2026" }))[0]).toContain("Datum");
     expect(isValidIsoDate("2026-02-30")).toBe(false);
     expect(isValidIsoDate("2026-02-28")).toBe(true);
   });

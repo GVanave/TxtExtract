@@ -91,14 +91,14 @@ describe("dates", () => {
 });
 
 describe("Excel export", () => {
-  it("writes a Receipts and an Items sheet with real numbers and dates", async () => {
+  it("writes an Einkäufe and a Produkte sheet with real numbers and dates", async () => {
     const book = new ExcelJS.Workbook();
     await book.xlsx.load((await receiptsWorkbook(sep)) as unknown as ArrayBuffer); // exceljs typings predate Buffer<T>
-    const receipts = book.getWorksheet("Receipts")!;
-    const items = book.getWorksheet("Items")!;
+    const receipts = book.getWorksheet("Einkäufe")!;
+    const items = book.getWorksheet("Produkte")!;
     expect(receipts.rowCount).toBe(3);
     expect(items.rowCount).toBe(7);
-    expect(receipts.getRow(1).getCell(1).value).toBe("Date");
+    expect(receipts.getRow(1).getCell(1).value).toBe("Datum");
     expect(receipts.getRow(2).getCell(5).value).toBe(2.34);
     expect((receipts.getRow(2).getCell(1).value as Date).toISOString().slice(0, 10)).toBe("2026-09-05");
     expect(items.getRow(2).getCell(7).value).toBe("Snacks & Süßes");

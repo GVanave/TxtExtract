@@ -11,6 +11,7 @@ export { StoreError } from "./client";
 
 export type SaveMeta = { issues: string[]; model: string | null; imageName: string | null; rawExtraction?: unknown };
 export type MonthTotal = { month: string; totalCents: number; trips: number };
+export type DeletedReceipt = { receipt: SavedReceipt; rawExtraction: unknown };
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type Conn = Db | Tx;
@@ -303,10 +304,70 @@ export class ReceiptStore {
   }
 
   async delete(userId: string, id: string): Promise<boolean> {
-    if (!isUuid(id)) return false;
+    return (await this.deleteWithSnapshot(userId, id)) !== null;
+  }
+
+  /** Deletes a receipt and returns what was deleted, so the user can undo it with `restore`. */
+  async deleteWithSnapshot(userId: string, id: string): Promise<DeletedReceipt | null> {
+    if (!isUuid(id)) return null;
     const db = await this.db();
-    const deleted = await db.delete(receipts).where(and(eq(receipts.userId, userId), eq(receipts.id, id))).returning({ id: receipts.id });
-    return deleted.length > 0;
+    const receipt = await this.get(userId, id);
+    if (!receipt) return null;
+    const deleted = await db
+      .delete(receipts)
+      .where(and(eq(receipts.userId, userId), eq(receipts.id, id)))
+      .returning({ rawExtraction: receipts.rawExtraction });
+    return deleted.length ? { receipt, rawExtraction: deleted[0].rawExtraction ?? null } : null;
+  }
+
+  /** Puts a just-deleted receipt back exactly as it was (same ids, categories and save time). */
+  async restore(userId: string, { receipt, rawExtraction }: DeletedReceipt): Promise<SavedReceipt | null> {
+    if (!isUuid(receipt.id) || receipt.line_items.some((i) => !isUuid(i.id))) return null;
+    const db = await this.db();
+    const restored = await db.transaction(async (tx) => {
+      const [exists] = await tx.select({ id: receipts.id }).from(receipts).where(eq(receipts.id, receipt.id));
+      if (exists) return false;
+      const storeId = await this.resolveStoreId(tx, userId, receipt.store_raw || receipt.store_name);
+      await tx.insert(receipts).values({
+        id: receipt.id,
+        userId,
+        storeId,
+        storeRaw: receipt.store_raw,
+        storeAddress: receipt.store_address,
+        purchasedOn: receipt.date!,
+        purchasedAt: receipt.time,
+        totalCents: toCents(receipt.total),
+        currency: receipt.currency || "EUR",
+        paymentMethod: receipt.payment_method,
+        needsReview: receipt.needs_review,
+        issues: receipt.issues,
+        model: receipt.model,
+        imageName: receipt.image_name,
+        rawExtraction: rawExtraction ?? null,
+        createdAt: new Date(receipt.saved_at),
+      });
+      if (receipt.line_items.length) {
+        await tx.insert(receiptItems).values(
+          receipt.line_items.map((item, index) => ({
+            id: item.id,
+            receiptId: receipt.id,
+            position: index + 1,
+            rawText: item.raw_text,
+            name: item.name,
+            lineType: item.line_type,
+            quantity: item.quantity,
+            unit: item.unit,
+            unitPriceCents: item.unit_price === null ? null : toCents(item.unit_price),
+            totalCents: toCents(item.total_price),
+            vatCode: item.vat_code,
+            categoryId: categoryBySlug(item.category)?.id ?? null,
+            categorySource: item.category ? item.category_source : null,
+          })),
+        );
+      }
+      return true;
+    });
+    return restored ? this.get(userId, receipt.id) : null;
   }
 
   /** A saved receipt from the same store, day, time and total, if any. */

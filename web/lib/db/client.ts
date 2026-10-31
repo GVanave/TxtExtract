@@ -36,7 +36,7 @@ async function createDb(): Promise<Db> {
   if (process.env.NODE_ENV !== "production" && process.env.DATA_BACKEND === "pglite") {
     return createPgliteDb(process.env.PGLITE_DIR || undefined);
   }
-  throw new StoreError("The database is not configured. Set DATABASE_URL (Vercel → Storage → Neon Postgres).");
+  throw new StoreError("Die Datenbank ist noch nicht eingerichtet (DATABASE_URL fehlt: Vercel → Storage → Neon).");
 }
 
 /** A Postgres that runs inside this process (in memory, or in `dir`), with all migrations applied. */

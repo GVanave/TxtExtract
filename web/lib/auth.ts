@@ -48,5 +48,5 @@ export async function currentUser(): Promise<string | null> {
 }
 
 export async function unauthorized(): Promise<Response | null> {
-  return (await currentUser()) ? null : Response.json({ error: "Please sign in." }, { status: 401 });
+  return (await currentUser()) ? null : Response.json({ error: "Bitte melde dich an." }, { status: 401 });
 }

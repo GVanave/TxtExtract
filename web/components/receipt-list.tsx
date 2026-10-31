@@ -6,6 +6,8 @@ import type { SavedReceipt } from "@/lib/receipt";
 import { ChevronIcon } from "./icons";
 import { ReviewBadge } from "./ui";
 
+const productCount = (r: SavedReceipt) => r.line_items.filter((i) => i.line_type === "product").length;
+
 export function ReceiptList({ receipts }: { receipts: SavedReceipt[] }) {
   return (
     <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
@@ -16,14 +18,14 @@ export function ReceiptList({ receipts }: { receipts: SavedReceipt[] }) {
               {r.store_name.trim().slice(0, 2).toUpperCase() || "?"}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate font-medium">{r.store_name}</p>
-              <p className="text-xs text-muted">
+              <p className="truncate text-lg font-medium">{r.store_name}</p>
+              <p className="text-sm text-muted">
                 {germanDate(r.date)}
-                {r.time ? ` · ${r.time}` : ""} · {r.line_items.length} items
+                {r.time ? ` · ${r.time} Uhr` : ""} · {productCount(r)} {productCount(r) === 1 ? "Produkt" : "Produkte"}
               </p>
             </div>
             <div className="flex flex-col items-end gap-1">
-              <span className="tabular font-semibold">{euro(r.total)}</span>
+              <span className="tabular text-lg font-semibold">{euro(r.total)}</span>
               {r.needs_review && <ReviewBadge needsReview />}
             </div>
             <ChevronIcon size={18} className="shrink-0 text-muted" />

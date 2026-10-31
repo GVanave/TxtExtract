@@ -1,3 +1,4 @@
+import { euro } from "./format";
 import type { Receipt } from "./receipt";
 
 /** Deterministic checks on an extracted receipt. The model reads; this code does the maths. */
@@ -6,17 +7,18 @@ const TOLERANCE_CENTS = 1;
 const LINE_TOLERANCE = 0.02; // weighed items are rounded per line
 
 const cents = (amount: number) => Math.round(amount * 100);
-const eur = (centsValue: number) => (centsValue / 100).toFixed(2);
+const eur = (centsValue: number) => euro(centsValue / 100);
+const num = (n: number) => String(n).replace(".", ",");
 
 export function validateReceipt(receipt: Receipt): string[] {
   const issues: string[] = [];
 
-  if (receipt.line_items.length === 0) issues.push("No line items were extracted.");
+  if (receipt.line_items.length === 0) issues.push("Es wurden keine Produkte erkannt.");
 
   const itemsSum = receipt.line_items.reduce((sum, item) => sum + cents(item.total_price), 0);
   const total = cents(receipt.total);
   if (Math.abs(itemsSum - total) > TOLERANCE_CENTS) {
-    issues.push(`Line items add up to ${eur(itemsSum)} EUR but the receipt total is ${eur(total)} EUR.`);
+    issues.push(`Die Preise ergeben zusammen ${eur(itemsSum)}, auf dem Kassenbon steht aber ${eur(total)}.`);
   }
 
   receipt.line_items.forEach((item, index) => {
@@ -24,8 +26,8 @@ export function validateReceipt(receipt: Receipt): string[] {
       const expected = item.quantity * item.unit_price;
       if (Math.abs(expected - item.total_price) > LINE_TOLERANCE) {
         issues.push(
-          `Line ${index + 1} '${item.raw_text}': ${item.quantity} x ${item.unit_price.toFixed(2)} = ${expected.toFixed(2)}, ` +
-            `but the line total is ${item.total_price.toFixed(2)}.`,
+          `Bei „${item.name || item.raw_text}“ (Zeile ${index + 1}) passt die Rechnung nicht: ` +
+            `${num(item.quantity)} × ${euro(item.unit_price)} sind ${euro(expected)}, eingetragen ist ${euro(item.total_price)}.`,
         );
       }
     }
@@ -36,12 +38,12 @@ export function validateReceipt(receipt: Receipt): string[] {
     const vatGross = gross.reduce((sum, value) => sum + cents(value), 0);
     // Deposit returns sometimes sit outside the VAT table, so only flag a mismatch against both sums.
     if (vatGross !== total && vatGross !== itemsSum) {
-      issues.push(`VAT table gross sum ${eur(vatGross)} EUR does not match the total ${eur(total)} EUR.`);
+      issues.push(`Die MwSt.-Übersicht ergibt ${eur(vatGross)}, die Summe ist aber ${eur(total)}.`);
     }
   }
 
   if (receipt.date !== null && !isValidIsoDate(receipt.date)) {
-    issues.push(`Date '${receipt.date}' is not a valid YYYY-MM-DD date.`);
+    issues.push(`Das Datum „${receipt.date}“ ist ungültig.`);
   }
 
   return issues;

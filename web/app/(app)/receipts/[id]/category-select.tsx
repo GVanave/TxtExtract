@@ -36,17 +36,17 @@ export function CategorySelect({ itemId, value, label }: { itemId: string; value
         value={current}
         aria-label={label}
         onChange={(e) => void change(e.target.value)}
-        className={`max-w-44 rounded-md border bg-surface px-1.5 py-0.5 text-xs outline-none focus:border-brand ${error ? "border-danger" : "border-line"} ${current ? "text-ink" : "text-muted"}`}
+        className={`min-h-11 max-w-full rounded-md border bg-surface px-2 py-1.5 text-base outline-none focus:border-brand ${error ? "border-danger" : "border-line"} ${current ? "text-ink" : "text-muted"}`}
       >
-        <option value="">No category</option>
+        <option value="">Keine Kategorie</option>
         {CATEGORIES.map((c) => (
           <option key={c.slug} value={c.slug}>
-            {c.name}
+            {c.icon} {c.name}
           </option>
         ))}
       </select>
       {pending && <Spinner size={12} />}
-      {error && <span className="text-xs text-danger">Not saved</span>}
+      {error && <span className="text-sm text-danger">Nicht gespeichert</span>}
     </span>
   );
 }

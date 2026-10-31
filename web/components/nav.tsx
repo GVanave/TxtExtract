@@ -7,9 +7,9 @@ import { signOut } from "next-auth/react";
 import { ChartIcon, Logo, LogoutIcon, ReceiptIcon, ScanIcon } from "./icons";
 
 const TABS = [
-  { href: "/", label: "Scan", Icon: ScanIcon },
-  { href: "/receipts", label: "Receipts", Icon: ReceiptIcon },
-  { href: "/spending", label: "Spending", Icon: ChartIcon },
+  { href: "/", label: "Scannen", Icon: ScanIcon },
+  { href: "/receipts", label: "Einkäufe", Icon: ReceiptIcon },
+  { href: "/spending", label: "Ausgaben", Icon: ChartIcon },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -25,7 +25,7 @@ export function TopBar({ email, authEnabled }: { email: string; authEnabled: boo
           <Logo size={28} />
           <span>Kassenbon</span>
         </Link>
-        <nav className="hidden items-center gap-1 sm:flex" aria-label="Main">
+        <nav className="hidden items-center gap-1 sm:flex" aria-label="Hauptmenü">
           {TABS.map(({ href, label, Icon }) => (
             <Link
               key={href}
@@ -49,7 +49,7 @@ export function TopBar({ email, authEnabled }: { email: string; authEnabled: boo
               className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-muted transition hover:bg-surface-2 hover:text-ink"
             >
               <LogoutIcon size={18} />
-              <span className="hidden sm:inline">Sign out</span>
+              <span className="hidden sm:inline">Abmelden</span>
             </button>
           )}
         </div>
@@ -63,7 +63,7 @@ export function BottomTabs() {
   const pathname = usePathname();
   return (
     <nav
-      aria-label="Main"
+      aria-label="Hauptmenü"
       className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface/95 backdrop-blur pb-[env(safe-area-inset-bottom)] sm:hidden"
     >
       <div className="grid grid-cols-3">
@@ -72,9 +72,9 @@ export function BottomTabs() {
             key={href}
             href={href}
             aria-current={isActive(pathname, href) ? "page" : undefined}
-            className="flex flex-col items-center gap-0.5 py-2.5 text-xs font-medium text-muted aria-[current=page]:text-brand"
+            className="flex h-[4.25rem] flex-col items-center justify-center gap-1 text-sm font-semibold text-muted aria-[current=page]:text-brand"
           >
-            <Icon size={22} />
+            <Icon size={26} />
             {label}
           </Link>
         ))}

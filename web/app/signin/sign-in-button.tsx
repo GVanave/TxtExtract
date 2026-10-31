@@ -11,7 +11,7 @@ export function SignInButton() {
   return (
     <button
       type="button"
-      className={`${button.secondary} w-full py-3.5`}
+      className={`${button.secondary} w-full py-4 text-lg`}
       disabled={busy}
       onClick={() => {
         setBusy(true);
@@ -28,7 +28,7 @@ export function SignInButton() {
           <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
         </svg>
       )}
-      Continue with Google
+      Mit Google anmelden
     </button>
   );
 }
