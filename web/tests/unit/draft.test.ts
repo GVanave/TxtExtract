@@ -44,9 +44,9 @@ describe("draft round trip", () => {
     draft.store_name = " ";
     draft.total = "";
     expect(draftToReceipt(draft).problems).toEqual([
-      "The store name is empty.",
-      "The receipt total is not a valid amount.",
-      "Line 1 (BIO VOLLM. 3,8%): the total is not a valid amount.",
+      "Bitte trage das Geschäft ein.",
+      "Die Summe ist kein gültiger Betrag (Beispiel: 12,49).",
+      "„BIO VOLLM. 3,8%“: Der Preis ist kein gültiger Betrag (Beispiel: 1,99).",
     ]);
   });
 

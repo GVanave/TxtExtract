@@ -7,11 +7,11 @@ import { ReceiptList } from "@/components/receipt-list";
 import { CategoryBreakdown, MonthChart, MonthHeadline } from "@/components/spending";
 import { button, EmptyState, PageHeader } from "@/components/ui";
 import { isMonth, monthOf, shiftMonth, todayIso } from "@/lib/dates";
-import { monthLabel } from "@/lib/format";
+import { monthLabel, monthName } from "@/lib/format";
 import { categoryBreakdown, categoryProducts, chartMonths, monthExtras, monthSummary } from "@/lib/month-stats";
 import { loadPageData } from "@/lib/page-data";
 
-export const metadata: Metadata = { title: "Spending" };
+export const metadata: Metadata = { title: "Ausgaben" };
 
 export default async function SpendingPage(props: PageProps<"/spending">) {
   const params = await props.searchParams;
@@ -32,11 +32,11 @@ export default async function SpendingPage(props: PageProps<"/spending">) {
   if (chart.bars.length === 0) {
     return (
       <>
-        <PageHeader title="Spending" subtitle="Where your supermarket money goes." />
-        <EmptyState icon={<ChartIcon size={28} />} title="Nothing to show yet">
-          <p>Your dashboard fills in as you save receipts.</p>
+        <PageHeader title="Ausgaben" subtitle="Hier siehst du, wofür du im Supermarkt Geld ausgibst." />
+        <EmptyState icon={<ChartIcon size={28} />} title="Noch keine Ausgaben">
+          <p>Sobald du Kassenbons speicherst, erscheinen sie hier.</p>
           <Link href="/" className={`${button.primary} mt-4`}>
-            Scan a receipt
+            Kassenbon fotografieren
           </Link>
         </EmptyState>
       </>
@@ -47,13 +47,13 @@ export default async function SpendingPage(props: PageProps<"/spending">) {
   // While a month is running, compare it with the same days of the month before, not the whole month.
   const comparable = summary.partial ? previous.filter((r) => Number(r.date!.slice(8, 10)) <= summary.partial!.throughDay) : previous;
   const compareLabel = summary.partial
-    ? `change vs 1–${summary.partial.throughDay} ${monthLabel(summary.previousMonth).split(" ")[0]}`
-    : `change vs ${monthLabel(summary.previousMonth, "long").split(" ")[0]}`;
+    ? `Vergleich: 1. bis ${summary.partial.throughDay}. ${monthName(summary.previousMonth)}.`
+    : `Vergleich mit ${monthName(summary.previousMonth)}.`;
   const category = typeof params.category === "string" ? params.category : null;
 
   return (
     <>
-      <PageHeader title="Spending" subtitle="Tap a month to see where the money went." />
+      <PageHeader title="Ausgaben" subtitle="Tippe auf einen Monat, um zu sehen, wofür das Geld ausgegeben wurde." />
       <div className="space-y-4">
         <MonthChart bars={chart.bars} averageCents={chart.averageCents} selected={month} />
         <MonthHeadline summary={summary} averageCents={chart.averageCents} />
@@ -67,10 +67,10 @@ export default async function SpendingPage(props: PageProps<"/spending">) {
         />
         <section>
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1">
-            <h2 className="font-semibold">Receipts in {monthLabel(month, "long")}</h2>
-            {receipts.length > 0 && <ExportButton month={month} label="Export month" />}
+            <h2 className="text-lg font-semibold">Einkäufe im {monthLabel(month)}</h2>
+            {receipts.length > 0 && <ExportButton month={month} label="Monat als Excel" />}
           </div>
-          {receipts.length ? <ReceiptList receipts={receipts} /> : <p className="px-1 text-sm text-muted">No receipts in this month.</p>}
+          {receipts.length ? <ReceiptList receipts={receipts} /> : <p className="px-1 text-base text-muted">In diesem Monat gibt es keine Einkäufe.</p>}
         </section>
       </div>
     </>

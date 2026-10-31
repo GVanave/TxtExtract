@@ -1,42 +1,35 @@
 import Link from "next/link";
 
-import { euro, monthLabel } from "@/lib/format";
+import { categoryIcon } from "@/lib/categories";
+import { differenceInWords, euroFromCents as eur, monthLabel, monthName, monthShort } from "@/lib/format";
 import type { CategoryRow, MonthBar, MonthSummary, ProductRow } from "@/lib/month-stats";
 
 import { Card } from "./ui";
 
-const eur = (cents: number) => euro(cents / 100);
-const shortMonth = (month: string) => `${monthLabel(month).split(" ")[0]} '${month.slice(2, 4)}`;
-
-/** "+12,30 €" in warning colour when spending went up, "−4,10 €" in green when it went down. */
-export function Delta({ cents, className = "" }: { cents: number; className?: string }) {
-  if (cents === 0) return <span className={`text-muted ${className}`}>±0,00 €</span>;
-  const up = cents > 0;
-  return (
-    <span className={`tabular ${up ? "text-warn" : "text-ok"} ${className}`}>
-      {up ? "▲ +" : "▼ −"}
-      {eur(Math.abs(cents)).replace("-", "")}
-    </span>
-  );
+/** "3,19 € mehr" in warning colour when spending went up, "0,61 € weniger" in green when it went down. */
+export function Change({ cents, className = "" }: { cents: number; className?: string }) {
+  const tone = cents > 0 ? "text-warn" : cents < 0 ? "text-ok" : "text-muted";
+  return <span className={`tabular ${tone} ${className}`}>{differenceInWords(cents)}</span>;
 }
 
 /** Bars for the last months; tapping one opens its breakdown below (plain links: fast, works with the back button). */
 export function MonthChart({ bars, averageCents, selected }: { bars: MonthBar[]; averageCents: number | null; selected: string }) {
   const max = Math.max(...bars.map((b) => b.totalCents), averageCents ?? 0, 1);
-  const LABEL = "1.25rem"; // space for the amount above each bar
+  const LABEL = "1.5rem"; // space for the amount above each bar
   const height = (cents: number) => `calc((100% - ${LABEL}) * ${cents / max})`;
 
   return (
     <Card>
-      <div className="mb-3 flex items-baseline justify-between gap-2">
-        <h2 className="font-semibold">Last {bars.length === 1 ? "month" : `${bars.length} months`}</h2>
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-lg font-semibold">Letzte {bars.length === 1 ? "Monat" : `${bars.length} Monate`}</h2>
         {averageCents !== null && (
-          <span className="flex items-center gap-1.5 text-xs text-muted">
-            <span className="inline-block w-4 border-t-2 border-dashed border-muted" aria-hidden="true" />Ø {eur(averageCents)}
+          <span className="flex items-center gap-1.5 text-sm text-muted">
+            <span className="inline-block w-4 border-t-2 border-dashed border-muted" aria-hidden="true" />
+            Durchschnitt {eur(averageCents)}
           </span>
         )}
       </div>
-      <div className="relative h-44">
+      <div className="relative h-48">
         {averageCents !== null && (
           <div
             className="pointer-events-none absolute inset-x-0 border-t-2 border-dashed border-muted/60"
@@ -54,10 +47,10 @@ export function MonthChart({ bars, averageCents, selected }: { bars: MonthBar[];
                 href={`/spending?month=${bar.month}`}
                 scroll={false}
                 aria-current={isSelected ? "true" : undefined}
-                aria-label={`${monthLabel(bar.month, "long")}${bar.current ? " so far" : ""}: ${eur(bar.totalCents)}, ${bar.trips} receipts`}
+                aria-label={`${monthLabel(bar.month)}${bar.current ? " (läuft noch)" : ""}: ${eur(bar.totalCents)}, ${bar.trips} Einkäufe`}
                 className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end"
               >
-                <span className={`tabular mb-1 rounded bg-surface px-1 text-[11px] sm:text-xs ${isSelected ? "font-semibold text-ink" : "text-muted"}`}>
+                <span className={`tabular mb-1 rounded bg-surface px-1 text-sm ${isSelected ? "font-bold text-ink" : "text-muted"}`}>
                   {Math.round(bar.totalCents / 100)} €
                 </span>
                 <span
@@ -73,9 +66,9 @@ export function MonthChart({ bars, averageCents, selected }: { bars: MonthBar[];
       </div>
       <div className="mt-2 flex gap-2 sm:gap-4">
         {bars.map((bar) => (
-          <span key={bar.month} className={`min-w-0 flex-1 truncate text-center text-[11px] sm:text-xs ${bar.month === selected ? "font-semibold text-ink" : "text-muted"}`}>
-            {shortMonth(bar.month)}
-            {bar.current && <span className="block text-[10px] font-normal text-muted">so far</span>}
+          <span key={bar.month} className={`min-w-0 flex-1 whitespace-nowrap text-center text-xs sm:text-sm ${bar.month === selected ? "font-bold text-ink" : "text-muted"}`}>
+            {monthShort(bar.month)}
+            {bar.current && <span className="block text-xs font-normal text-muted">läuft noch</span>}
           </span>
         ))}
       </div>
@@ -83,45 +76,48 @@ export function MonthChart({ bars, averageCents, selected }: { bars: MonthBar[];
   );
 }
 
+/** The month in whole sentences: how much, how often, and compared with before. */
 export function MonthHeadline({ summary, averageCents }: { summary: MonthSummary; averageCents: number | null }) {
   const { partial } = summary;
-  const compareCents = partial ? partial.previousSamePeriodCents : summary.previousCents;
-  const compareLabel = partial
-    ? `vs 1–${partial.throughDay} ${monthLabel(summary.previousMonth).split(" ")[0]}`
-    : `vs ${monthLabel(summary.previousMonth, "long").split(" ")[0]}`;
+  const name = monthName(summary.month);
+  const previous = monthName(summary.previousMonth);
+  const trips = `${summary.trips} ${summary.trips === 1 ? "Einkauf" : "Einkäufen"}`;
+
+  let comparison: React.ReactNode = null;
+  if (partial) {
+    if (summary.previousCents !== null) {
+      comparison = (
+        <>
+          Im gleichen Zeitraum im {previous} waren es {eur(partial.previousSamePeriodCents)}. Das sind jetzt{" "}
+          <Change cents={summary.totalCents - partial.previousSamePeriodCents} className="font-semibold" />.
+        </>
+      );
+    }
+  } else if (summary.previousCents !== null) {
+    comparison = (
+      <>
+        Das sind <Change cents={summary.totalCents - summary.previousCents} className="font-semibold" /> als im {previous}.
+      </>
+    );
+  }
 
   return (
     <Card>
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-        <div>
-          <h2 className="text-sm font-medium text-muted">
-            {monthLabel(summary.month, "long")}
-            {partial ? ` · 1–${partial.throughDay} so far` : ""}
-          </h2>
-          <p className="tabular mt-0.5 text-3xl font-bold tracking-tight">{eur(summary.totalCents)}</p>
-          <p className="mt-0.5 text-sm text-muted">
-            {summary.trips} {summary.trips === 1 ? "trip" : "trips"} · Ø {eur(summary.perTripCents)} per trip
-          </p>
-        </div>
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
-          {compareCents !== null && (
-            <>
-              <dt className="text-muted">{compareLabel}</dt>
-              <dd className="text-right">
-                <Delta cents={summary.totalCents - compareCents} />
-              </dd>
-            </>
-          )}
-          {averageCents !== null && !partial && (
-            <>
-              <dt className="text-muted">vs Ø of full months</dt>
-              <dd className="text-right">
-                <Delta cents={summary.totalCents - averageCents} />
-              </dd>
-            </>
-          )}
-        </dl>
-      </div>
+      <h2 className="text-base font-medium text-muted">
+        {monthLabel(summary.month)}
+        {partial ? " (läuft noch)" : ""}
+      </h2>
+      <p className="tabular mt-0.5 text-4xl font-bold tracking-tight">{eur(summary.totalCents)}</p>
+      <p className="mt-2 text-lg">
+        Im {name} hast du {partial ? "bis heute " : ""}
+        <strong>{eur(summary.totalCents)}</strong> ausgegeben, bei {trips} (im Schnitt {eur(summary.perTripCents)} pro Einkauf).
+      </p>
+      {comparison && <p className="mt-1 text-lg">{comparison}</p>}
+      {averageCents !== null && !partial && (
+        <p className="mt-1 text-base text-muted">
+          Dein Durchschnitt pro Monat: {eur(averageCents)} ({differenceInWords(summary.totalCents - averageCents)} in diesem Monat).
+        </p>
+      )}
     </Card>
   );
 }
@@ -138,12 +134,10 @@ export function CategoryBreakdown(props: {
   const max = Math.max(...props.rows.map((r) => r.cents), 1);
   return (
     <Card>
-      <div className="mb-2 flex items-baseline justify-between gap-2">
-        <h2 className="font-semibold">By category</h2>
-        <span className="text-xs text-muted">{props.compareLabel}</span>
-      </div>
+      <h2 className="text-lg font-semibold">Wofür du Geld ausgegeben hast</h2>
+      <p className="mb-2 text-sm text-muted">Tippe auf eine Kategorie für die einzelnen Produkte. {props.compareLabel}</p>
       {props.rows.length === 0 ? (
-        <p className="text-sm text-muted">No products this month.</p>
+        <p className="text-muted">In diesem Monat gibt es keine Produkte.</p>
       ) : (
         <ul className="divide-y divide-line" id="categories">
           {props.rows.map((row) => {
@@ -154,27 +148,24 @@ export function CategoryBreakdown(props: {
                   href={open ? `/spending?month=${props.month}` : `/spending?month=${props.month}&category=${row.slug}`}
                   scroll={false}
                   aria-expanded={open}
-                  className="-mx-2 block rounded-lg px-2 py-2.5 transition hover:bg-surface-2"
+                  className="-mx-2 block rounded-lg px-2 py-3 transition hover:bg-surface-2"
                 >
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className={`truncate text-sm ${open ? "font-semibold" : "font-medium"}`}>
-                      <span className={`mr-1.5 inline-block text-muted transition ${open ? "rotate-90" : ""}`} aria-hidden="true">
-                        ›
-                      </span>
-                      {row.name}
+                  <div className="flex items-center justify-between gap-3">
+                    <span className={`flex min-w-0 items-center gap-2 text-lg ${open ? "font-semibold" : "font-medium"}`}>
+                      <span aria-hidden="true">{categoryIcon(row.slug)}</span>
+                      <span className="truncate">{row.name}</span>
                     </span>
-                    <span className="flex shrink-0 items-baseline gap-3 text-sm">
-                      <Delta cents={row.cents - row.previousCents} className="hidden text-xs sm:inline" />
-                      <span className="tabular w-20 text-right font-semibold">{eur(row.cents)}</span>
-                    </span>
+                    <span className="tabular shrink-0 text-lg font-semibold">{eur(row.cents)}</span>
                   </div>
                   <div className="mt-1.5 flex items-center gap-2">
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-2">
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-2">
                       <div className={`h-full rounded-full ${open ? "bg-brand" : "bg-bar/70"}`} style={{ width: `${(Math.max(row.cents, 0) / max) * 100}%` }} />
                     </div>
-                    <span className="tabular w-9 text-right text-[11px] text-muted">{row.share} %</span>
-                    <Delta cents={row.cents - row.previousCents} className="text-[11px] sm:hidden" />
+                    <span className="tabular w-11 text-right text-sm text-muted">{row.share} %</span>
                   </div>
+                  <p className="mt-1 text-sm">
+                    <Change cents={row.cents - row.previousCents} />
+                  </p>
                 </Link>
                 {open && <ProductList products={props.products} />}
               </li>
@@ -182,9 +173,10 @@ export function CategoryBreakdown(props: {
           })}
         </ul>
       )}
-      <p className="mt-3 border-t border-line pt-3 text-xs text-muted">
-        Pfand paid {eur(props.extras.pfandPaid)} · returned {eur(props.extras.pfandReturned)} (not counted in categories) · discounts saved{" "}
-        <span className="text-ok">{eur(props.extras.discountsSaved)}</span>
+      <p className="mt-3 border-t border-line pt-3 text-base text-muted">
+        Durch Rabatte gespart: <span className="font-semibold text-ok">{eur(props.extras.discountsSaved)}</span>
+        <br />
+        Pfand: {eur(props.extras.pfandPaid)} bezahlt, {eur(props.extras.pfandReturned)} zurückbekommen (nicht in den Kategorien enthalten).
       </p>
     </Card>
   );
@@ -192,17 +184,17 @@ export function CategoryBreakdown(props: {
 
 function ProductList({ products }: { products: ProductRow[] }) {
   return (
-    <ul className="mb-2 ml-4 space-y-1 border-l-2 border-brand/30 pl-3" aria-label="Products">
+    <ul className="mb-2 ml-4 space-y-1 border-l-2 border-brand/30 pl-3" aria-label="Produkte">
       {products.map((p) => (
-        <li key={p.name} className="flex items-baseline justify-between gap-3 py-1 text-sm">
+        <li key={p.name} className="flex items-baseline justify-between gap-3 py-1.5">
           <span className="min-w-0">
-            <span className="block truncate">{p.name}</span>
-            <span className="block truncate text-[11px] text-muted">
+            <span className="block truncate text-base">{p.name}</span>
+            <span className="block truncate text-sm text-muted">
               {p.times}× · {p.stores.join(", ")}
-              {p.discountCents > 0 && <span className="text-ok"> · incl. −{eur(p.discountCents)} discount</span>}
+              {p.discountCents > 0 && <span className="text-ok"> · inkl. {eur(p.discountCents)} Rabatt</span>}
             </span>
           </span>
-          <span className="tabular shrink-0 font-medium">{eur(p.spentCents)}</span>
+          <span className="tabular shrink-0 text-base font-medium">{eur(p.spentCents)}</span>
         </li>
       ))}
     </ul>

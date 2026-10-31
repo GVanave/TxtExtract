@@ -3,10 +3,11 @@ import type { MetadataRoute } from "next";
 /** Lets phones install the app on the home screen ("Add to Home Screen"). */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Kassenbon – receipt tracker",
+    name: "Kassenbon – deine Einkäufe im Blick",
     short_name: "Kassenbon",
-    description: "Scan supermarket receipts and track your spending.",
+    description: "Kassenbons fotografieren und sehen, wofür du dein Geld ausgibst.",
     start_url: "/",
+    lang: "de",
     display: "standalone",
     background_color: "#f6f7f5",
     theme_color: "#0f766e",

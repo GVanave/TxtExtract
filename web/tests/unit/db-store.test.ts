@@ -1,8 +1,9 @@
 import { sql } from "drizzle-orm";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createPgliteDb, type Db } from "@/lib/db/client";
 import { canonicalStoreName, ReceiptStore } from "@/lib/db/store";
+import { logError } from "@/lib/log";
 import type { Receipt } from "@/lib/receipt";
 
 import { item, receipt } from "./fixtures";
@@ -121,6 +122,22 @@ describe("ReceiptStore", () => {
     expect(await store.delete(me, oct.id)).toBe(false);
   });
 
+  it("restores a deleted receipt with the same ids and categories (undo)", async () => {
+    const saved = await store.save(me, LIDL, meta);
+    await store.setItemCategory(me, saved.line_items[0].id, "snacks");
+    const deleted = await store.deleteWithSnapshot(me, saved.id);
+    expect(deleted?.receipt.id).toBe(saved.id);
+    expect(await store.get(me, saved.id)).toBeNull();
+
+    const restored = await store.restore(me, deleted!);
+    expect(restored?.id).toBe(saved.id);
+    expect(restored?.saved_at).toBe(saved.saved_at);
+    expect(restored?.line_items.map((i) => i.id)).toEqual(saved.line_items.map((i) => i.id));
+    expect(restored?.line_items[0].category).toBe("snacks");
+    // A second undo does nothing.
+    expect(await store.restore(me, deleted!)).toBeNull();
+  });
+
   it("keeps users apart", async () => {
     const saved = await store.save(me, LIDL, meta);
     const other = await store.userId("partner@example.com");
@@ -135,6 +152,18 @@ describe("ReceiptStore", () => {
     const broken = { ...LIDL, line_items: [...LIDL.line_items, item("BAD", 1, { line_type: "nonsense" as never })] };
     await expect(store.save(me, broken, meta)).rejects.toThrow();
     expect(await store.list(me)).toEqual([]);
+  });
+
+  it("logs a failed query without its parameters (no personal data in logs)", async () => {
+    const secret = { ...LIDL, store_name: "GEHEIM-MARKT", line_items: [item("GEHEIM-PRODUKT", 1, { line_type: "nonsense" as never })] };
+    const error = await store.save(me, secret, meta).catch((e: unknown) => e);
+    expect(String(error) + String((error as Error).cause)).toMatch(/nonsense/); // the raw error does contain the data
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    logError("save", error);
+    const logged = spy.mock.calls.map((c) => c.join(" ")).join("\n");
+    spy.mockRestore();
+    expect(logged).toContain("save:");
+    expect(logged).not.toMatch(/GEHEIM|me@example\.com|nonsense/);
   });
 
   it("requires a date", async () => {

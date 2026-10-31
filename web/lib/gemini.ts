@@ -16,7 +16,18 @@ export const DEFAULT_MODEL = "gemini-2.5-flash";
 const TRANSIENT = new Set([429, 500, 502, 503, 504]);
 const RETRY_DELAYS_MS = [2000, 5000, 10000];
 
-export class ExtractionError extends Error {}
+/**
+ * `kind` decides what the user is told (see `friendlyExtractionError`); the message is technical and only for logs.
+ * busy: overloaded or rate-limited · setup: key, model or API configuration · unreadable: the photo could not be read.
+ */
+export class ExtractionError extends Error {
+  constructor(
+    message: string,
+    readonly kind: "busy" | "setup" | "unreadable" = "unreadable",
+  ) {
+    super(message);
+  }
+}
 
 export type ExtractionResult = {
   receipt: Receipt;
@@ -72,7 +83,7 @@ export class ReceiptExtractor {
     if (options.generate) {
       this.generate = options.generate;
     } else {
-      if (!options.apiKey) throw new ExtractionError("No Gemini API key. Set GEMINI_API_KEY in the environment.");
+      if (!options.apiKey) throw new ExtractionError("No Gemini API key. Set GEMINI_API_KEY in the environment.", "setup");
       const ai = new GoogleGenAI({ apiKey: options.apiKey });
       this.generate = (request) => ai.models.generateContent(request as Parameters<typeof ai.models.generateContent>[0]);
     }
@@ -141,7 +152,7 @@ export class ReceiptExtractor {
             break;
           }
           if (!TRANSIENT.has(error.status)) {
-            throw new ExtractionError(`Gemini API error ${error.status} (${model}): ${error.message}`);
+            throw new ExtractionError(`Gemini API error ${error.status} (${model}): ${error.message}`, "setup");
           }
           if (attempt > this.retryDelaysMs.length) {
             busy.push(`${model}: ${error.status} after ${attempt} tries`);
@@ -155,12 +166,13 @@ export class ReceiptExtractor {
     if (unavailable.length > 0 && busy.length === 0) {
       throw new ExtractionError(
         `No usable Gemini model. ${unavailable.join(" ")} Set GEMINI_MODEL / GEMINI_FALLBACK_MODEL to a current model name.`,
+        "setup",
       );
     }
     const hint = this.fallbackModels.length
       ? "Try again in a minute."
       : "Try again in a minute, or set GEMINI_FALLBACK_MODEL so a second model is tried automatically.";
-    throw new ExtractionError(`Gemini is busy or rate-limited (${[...busy, ...unavailable].join("; ")}). ${hint}`);
+    throw new ExtractionError(`Gemini is busy or rate-limited (${[...busy, ...unavailable].join("; ")}). ${hint}`, "busy");
   }
 }
 
@@ -185,4 +197,16 @@ export function parseReceipt(text: string | undefined): Receipt {
         : { ...item, category: null, category_source: null },
     ),
   };
+}
+
+/** What the user sees: plain German, no model names or status codes. */
+export function friendlyExtractionError(error: ExtractionError): string {
+  switch (error.kind) {
+    case "busy":
+      return "Der Lesedienst ist gerade überlastet. Bitte versuche es in einer Minute noch einmal.";
+    case "setup":
+      return "Das Lesen von Kassenbons funktioniert gerade nicht. Bitte versuche es später noch einmal.";
+    default:
+      return "Der Kassenbon konnte nicht gelesen werden. Bitte mach ein neues, scharfes Foto, auf dem der ganze Kassenbon zu sehen ist.";
+  }
 }

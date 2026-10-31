@@ -7,9 +7,9 @@ const RECEIPT = path.join(__dirname, "fixtures", "receipt.jpg");
 
 async function scan(page: Page) {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Scan a receipt" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Kassenbon scannen" })).toBeVisible();
   await page.getByTestId("file-input").setInputFiles(RECEIPT);
-  await expect(page.getByText("All checks passed")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/^Alles stimmt/)).toBeVisible({ timeout: 20_000 });
 }
 
 async function clickVisible(page: Page, name: RegExp) {
@@ -20,7 +20,7 @@ async function clickVisible(page: Page, name: RegExp) {
 /** Both projects (desktop, phone) share one dev server and database: start every project from empty. */
 async function deleteEverything(request: APIRequestContext) {
   const { receipts } = await (await request.get("/api/receipts")).json();
-  for (const r of receipts) expect((await request.delete(`/api/receipts/${r.id}`)).status()).toBe(204);
+  for (const r of receipts) expect((await request.delete(`/api/receipts/${r.id}`)).status()).toBe(200);
 }
 
 const line = (raw_text: string, total_price: number, extra: Record<string, unknown> = {}) => ({
@@ -47,60 +47,71 @@ test.describe.configure({ mode: "serial" });
 
 test.beforeAll(async ({ request }) => deleteEverything(request));
 
-test("scan, pick categories, save, view, re-categorise and delete", async ({ page }, info) => {
+test("scan, pick categories, save, view, re-categorise, delete and undo", async ({ page }, info) => {
   await scan(page);
   await expect(page.getByTestId("item-row")).toHaveCount(7);
-  await expect(page.getByLabel("Line 1 category")).toHaveValue("dairy"); // Gemini's guess
-  await expect(page.getByLabel("Line 4 category")).toHaveCount(0); // Pfand has no category
+  await expect(page.getByLabel("Zeile 1 Kategorie")).toHaveValue("dairy"); // Gemini's guess
+  await expect(page.getByLabel("Zeile 4 Kategorie")).toHaveCount(0); // Pfand has no category
 
   // Editing the total breaks the check; fixing it restores it.
-  const total = page.getByLabel("Total", { exact: true });
+  const total = page.getByLabel("Summe", { exact: true });
   await total.fill("8,04");
-  await expect(page.getByText("Some checks failed")).toBeVisible();
+  await expect(page.getByText("Bitte prüfen", { exact: true })).toBeVisible();
   await total.fill("7,04");
-  await expect(page.getByText("All checks passed")).toBeVisible();
+  await expect(page.getByText(/^Alles stimmt/)).toBeVisible();
 
-  await page.getByLabel("Line 7 category").selectOption("snacks");
+  await page.getByLabel("Zeile 7 Kategorie").selectOption("snacks");
   await page.screenshot({ path: info.outputPath("review.png"), fullPage: true });
-  await clickVisible(page, /Save receipt/);
-  await expect(page.getByRole("heading", { name: "Saved" })).toBeVisible();
+  await clickVisible(page, /^(Trotzdem )?[Ss]peichern$/);
+  await expect(page.getByRole("heading", { name: "Gespeichert" })).toBeVisible();
 
-  await page.getByRole("link", { name: "View receipt" }).click();
+  await page.getByRole("link", { name: "Einkauf ansehen" }).click();
   await expect(page.getByRole("heading", { name: "LIDL" })).toBeVisible();
-  await expect(page.getByLabel("Line 7 category")).toHaveValue("snacks");
-  await expect(page.getByLabel("Line 6 category")).toHaveCount(0); // the discount follows its product
+  await expect(page.getByLabel("Zeile 7 Kategorie")).toHaveValue("snacks");
+  await expect(page.getByLabel("Zeile 6 Kategorie")).toHaveCount(0); // the discount follows its product
   const saved = page.waitForResponse((r) => r.url().includes("/api/items/") && r.request().method() === "PATCH");
-  await page.getByLabel("Line 2 category").selectOption("other");
+  await page.getByLabel("Zeile 2 Kategorie").selectOption("other");
   expect((await saved).status()).toBe(204);
   await page.reload();
-  await expect(page.getByLabel("Line 2 category")).toHaveValue("other");
+  await expect(page.getByLabel("Zeile 2 Kategorie")).toHaveValue("other");
 
   // The next scan of the same products remembers both corrections.
   await scan(page);
-  await expect(page.getByLabel("Line 7 category")).toHaveValue("snacks");
-  await expect(page.getByLabel("Line 2 category")).toHaveValue("other");
-  await expect(page.getByText("remembered").first()).toBeVisible();
-  await clickVisible(page, /Discard/);
+  await expect(page.getByLabel("Zeile 7 Kategorie")).toHaveValue("snacks");
+  await expect(page.getByLabel("Zeile 2 Kategorie")).toHaveValue("other");
+  await expect(page.getByText("gemerkt").first()).toBeVisible();
+  await clickVisible(page, /^Verwerfen$/);
+  // Discarding can be undone.
+  await page.getByRole("button", { name: "Rückgängig" }).click();
+  await expect(page.getByLabel("Zeile 7 Kategorie")).toHaveValue("snacks");
+  await clickVisible(page, /^Verwerfen$/);
 
   await page.goto("/receipts");
   await page.getByRole("link", { name: /LIDL/ }).first().click();
-  await page.getByRole("button", { name: "Delete receipt" }).click();
-  await page.getByRole("button", { name: "Yes, delete" }).click();
-  await expect(page).toHaveURL(/\/receipts$/);
-  await expect(page.getByText("No receipts yet")).toBeVisible();
+  // Deleting needs no confirmation; it can be undone instead.
+  await page.getByRole("button", { name: "Einkauf löschen" }).click();
+  await expect(page.getByText("Einkauf gelöscht.")).toBeVisible();
+  await expect(page.getByText("Noch keine Einkäufe")).toBeVisible();
+  await page.getByRole("button", { name: "Rückgängig" }).click();
+  await expect(page.getByRole("heading", { name: "LIDL" })).toBeVisible();
+  await expect(page.getByLabel("Zeile 7 Kategorie")).toHaveValue("snacks");
+
+  await page.getByRole("button", { name: "Einkauf löschen" }).click();
+  await expect(page.getByText("Einkauf gelöscht.")).toBeVisible();
+  await expect(page.getByText("Noch keine Einkäufe")).toBeVisible();
 });
 
 test("warns about duplicates and can save anyway", async ({ page, request }) => {
   await scan(page);
-  await clickVisible(page, /Save receipt/);
-  await expect(page.getByRole("heading", { name: "Saved" })).toBeVisible();
-  await page.getByRole("button", { name: "Scan next receipt" }).click();
+  await clickVisible(page, /^(Trotzdem )?[Ss]peichern$/);
+  await expect(page.getByRole("heading", { name: "Gespeichert" })).toBeVisible();
+  await page.getByRole("button", { name: "Nächsten Kassenbon scannen" }).click();
   await page.getByTestId("file-input").setInputFiles(RECEIPT);
-  await expect(page.getByText("All checks passed")).toBeVisible({ timeout: 20_000 });
-  await clickVisible(page, /Save receipt/);
-  await expect(page.getByText("This receipt looks already saved")).toBeVisible();
-  await page.getByRole("button", { name: "Save anyway" }).click();
-  await expect(page.getByRole("heading", { name: "Saved" })).toBeVisible();
+  await expect(page.getByText(/^Alles stimmt/)).toBeVisible({ timeout: 20_000 });
+  await clickVisible(page, /^(Trotzdem )?[Ss]peichern$/);
+  await expect(page.getByText("Dieser Einkauf ist schon gespeichert")).toBeVisible();
+  await page.getByRole("button", { name: "Trotzdem speichern" }).first().click();
+  await expect(page.getByRole("heading", { name: "Gespeichert" })).toBeVisible();
   await deleteEverything(request);
 });
 
@@ -120,19 +131,19 @@ test("spending: 5-month chart, tap a month, open a category", async ({ page, req
   const bars = page.locator('a[href^="/spending?month="][aria-label]');
   await expect(bars).toHaveCount(5);
   await expect(bars.first()).toHaveAttribute("href", "/spending?month=2026-06");
-  await expect(page.getByText("so far").first()).toBeVisible(); // October is still running
+  await expect(page.getByText("läuft noch").first()).toBeVisible(); // October is still running
 
   await page.getByRole("link", { name: /^September 2026: / }).click();
   await expect(page).toHaveURL(/month=2026-09/);
   await expect(page.getByRole("heading", { name: "September 2026", exact: true })).toBeVisible();
-  await expect(page.getByText("2 trips")).toBeVisible();
-  await expect(page.getByText("Receipts in September 2026")).toBeVisible();
+  await expect(page.getByText(/bei 2 Einkäufen/)).toBeVisible();
+  await expect(page.getByText("Einkäufe im September 2026")).toBeVisible();
 
   await page.getByRole("link", { name: /Snacks & Süßes/ }).click();
   await expect(page).toHaveURL(/category=snacks/);
-  const products = page.getByRole("list", { name: "Products" });
+  const products = page.getByRole("list", { name: "Produkte" });
   await expect(products.getByText("Schokolade")).toBeVisible();
-  await expect(products.getByText("incl. −0,39 € discount")).toBeVisible();
+  await expect(products.getByText(/inkl\. 0,39\s€ Rabatt/)).toBeVisible();
   await expect(products.getByText("Chips")).toBeVisible();
   await expect(page.getByText("Nicht zugeordnet")).toBeVisible(); // BROT had no category
   await page.screenshot({ path: info.outputPath("spending.png"), fullPage: true });
@@ -143,12 +154,12 @@ test("spending: 5-month chart, tap a month, open a category", async ({ page, req
   expect(response.headers()["content-type"]).toContain("spreadsheetml");
   const book = new ExcelJS.Workbook();
   await book.xlsx.load((await response.body()) as unknown as ArrayBuffer);
-  expect(book.getWorksheet("Receipts")!.rowCount).toBe(3);
-  expect(book.getWorksheet("Items")!.rowCount).toBe(7);
+  expect(book.getWorksheet("Einkäufe")!.rowCount).toBe(3);
+  expect(book.getWorksheet("Produkte")!.rowCount).toBe(7);
 
   await page.goto("/receipts");
-  await expect(page.getByText("7 saved")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Export to Excel" })).toBeVisible();
+  await expect(page.getByText(/^7 gespeichert/)).toBeVisible();
+  await expect(page.getByRole("link", { name: "Als Excel herunterladen" })).toBeVisible();
   await deleteEverything(request);
 });
 
@@ -157,13 +168,13 @@ test("navigation fits the device", async ({ page, isMobile }) => {
   const bottomTabs = page.locator("nav.fixed");
   if (isMobile) {
     await expect(bottomTabs).toBeVisible();
-    await bottomTabs.getByRole("link", { name: "Spending" }).click();
+    await bottomTabs.getByRole("link", { name: "Ausgaben" }).click();
   } else {
     await expect(bottomTabs).toBeHidden();
-    await page.locator("header").getByRole("link", { name: "Spending" }).click();
+    await page.locator("header").getByRole("link", { name: "Ausgaben" }).click();
   }
-  await expect(page.getByRole("heading", { name: "Spending" })).toBeVisible();
-  await expect(page.getByText("Nothing to show yet")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ausgaben" })).toBeVisible();
+  await expect(page.getByText("Noch keine Ausgaben")).toBeVisible();
 });
 
 test("the API rejects invalid input", async ({ request }) => {

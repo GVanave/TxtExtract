@@ -7,24 +7,24 @@ import { LINE_TYPE_LABELS, type SavedReceipt } from "./receipt";
 
 const EURO = '#,##0.00 "€";-#,##0.00 "€"';
 
-/** An Excel file with a Receipts sheet (one row per receipt) and an Items sheet (one row per line). */
+/** An Excel file with an "Einkäufe" sheet (one row per receipt) and a "Produkte" sheet (one row per line). */
 export async function receiptsWorkbook(receipts: SavedReceipt[]): Promise<Buffer> {
   const book = new ExcelJS.Workbook();
   book.creator = "Kassenbon";
   book.created = new Date();
 
-  const sheet = book.addWorksheet("Receipts", { views: [{ state: "frozen", ySplit: 1 }] });
+  const sheet = book.addWorksheet("Einkäufe", { views: [{ state: "frozen", ySplit: 1 }] });
   sheet.columns = [
-    { header: "Date", key: "date", width: 12, style: { numFmt: "dd.mm.yyyy" } },
-    { header: "Time", key: "time", width: 8 },
-    { header: "Store", key: "store", width: 16 },
-    { header: "Printed store name", key: "storeRaw", width: 30 },
-    { header: "Total", key: "total", width: 11, style: { numFmt: EURO } },
-    { header: "Items", key: "items", width: 7 },
-    { header: "Payment", key: "payment", width: 12 },
-    { header: "Needs review", key: "review", width: 12 },
-    { header: "Issues", key: "issues", width: 40 },
-    { header: "Receipt ID", key: "id", width: 38 },
+    { header: "Datum", key: "date", width: 12, style: { numFmt: "dd.mm.yyyy" } },
+    { header: "Uhrzeit", key: "time", width: 8 },
+    { header: "Geschäft", key: "store", width: 16 },
+    { header: "Name auf dem Kassenbon", key: "storeRaw", width: 30 },
+    { header: "Betrag", key: "total", width: 11, style: { numFmt: EURO } },
+    { header: "Zeilen", key: "items", width: 8 },
+    { header: "Zahlung", key: "payment", width: 12 },
+    { header: "Bitte prüfen", key: "review", width: 12 },
+    { header: "Hinweise", key: "issues", width: 40 },
+    { header: "Einkauf-ID", key: "id", width: 38 },
   ];
   for (const r of receipts) {
     sheet.addRow({
@@ -35,27 +35,27 @@ export async function receiptsWorkbook(receipts: SavedReceipt[]): Promise<Buffer
       total: r.total,
       items: r.line_items.length,
       payment: r.payment_method ?? "",
-      review: r.needs_review ? "yes" : "",
+      review: r.needs_review ? "ja" : "",
       issues: r.issues.join(" | "),
       id: r.id,
     });
   }
 
-  const items = book.addWorksheet("Items", { views: [{ state: "frozen", ySplit: 1 }] });
+  const items = book.addWorksheet("Produkte", { views: [{ state: "frozen", ySplit: 1 }] });
   items.columns = [
-    { header: "Date", key: "date", width: 12, style: { numFmt: "dd.mm.yyyy" } },
-    { header: "Store", key: "store", width: 16 },
-    { header: "Line", key: "line", width: 6 },
-    { header: "Printed text", key: "raw", width: 26 },
-    { header: "Product", key: "name", width: 26 },
-    { header: "Type", key: "type", width: 10 },
-    { header: "Category", key: "category", width: 22 },
-    { header: "Quantity", key: "qty", width: 9 },
-    { header: "Unit", key: "unit", width: 6 },
-    { header: "Unit price", key: "unitPrice", width: 11, style: { numFmt: EURO } },
-    { header: "Total", key: "total", width: 11, style: { numFmt: EURO } },
-    { header: "VAT", key: "vat", width: 5 },
-    { header: "Receipt ID", key: "id", width: 38 },
+    { header: "Datum", key: "date", width: 12, style: { numFmt: "dd.mm.yyyy" } },
+    { header: "Geschäft", key: "store", width: 16 },
+    { header: "Zeile", key: "line", width: 6 },
+    { header: "Text auf dem Kassenbon", key: "raw", width: 26 },
+    { header: "Produkt", key: "name", width: 26 },
+    { header: "Art", key: "type", width: 10 },
+    { header: "Kategorie", key: "category", width: 22 },
+    { header: "Menge", key: "qty", width: 9 },
+    { header: "Einheit", key: "unit", width: 6 },
+    { header: "Stückpreis", key: "unitPrice", width: 11, style: { numFmt: EURO } },
+    { header: "Betrag", key: "total", width: 11, style: { numFmt: EURO } },
+    { header: "MwSt", key: "vat", width: 5 },
+    { header: "Einkauf-ID", key: "id", width: 38 },
   ];
   for (const r of receipts) {
     r.line_items.forEach((item, index) => {

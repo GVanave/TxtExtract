@@ -28,13 +28,13 @@ export async function POST(request: Request) {
 
   const body = saveRequest.safeParse(await request.json().catch(() => null));
   if (!body.success) {
-    return Response.json({ error: `Invalid receipt: ${body.error.issues[0]?.path.join(".")} ${body.error.issues[0]?.message}` }, { status: 400 });
+    return Response.json({ error: `Ungültige Daten (${body.error.issues[0]?.path.join(".")}).` }, { status: 400 });
   }
   const { receipt, model, imageName, rawExtraction, allowDuplicate } = body.data;
-  if (!receipt.store_name.trim()) return Response.json({ error: "The store name is empty." }, { status: 400 });
-  if (!receipt.date || !isValidIsoDate(receipt.date)) return Response.json({ error: "The receipt needs a valid date." }, { status: 400 });
+  if (!receipt.store_name.trim()) return Response.json({ error: "Bitte trage das Geschäft ein." }, { status: 400 });
+  if (!receipt.date || !isValidIsoDate(receipt.date)) return Response.json({ error: "Bitte trage ein gültiges Datum ein." }, { status: 400 });
   if (rawExtraction !== undefined && JSON.stringify(rawExtraction).length > 200_000) {
-    return Response.json({ error: "The extraction data is too large." }, { status: 413 });
+    return Response.json({ error: "Die Daten sind zu groß." }, { status: 413 });
   }
 
   try {

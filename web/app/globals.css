@@ -71,6 +71,11 @@ body {
   color: var(--text);
 }
 
+/* Slightly larger text everywhere (17px instead of 16px); rem-based, so the phone's text-size setting still applies. */
+html {
+  font-size: 106.25%;
+}
+
 body {
   font-family: var(--font-sans);
   -webkit-tap-highlight-color: transparent;

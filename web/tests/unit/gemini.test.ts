@@ -51,7 +51,7 @@ describe("ReceiptExtractor", () => {
     const bad = { ...GOOD, total: 99 };
     const { extractor } = scripted([ok(bad), ok(bad)]);
     const result = await extractor.extract(IMG, "image/jpeg");
-    expect(result.issues[0]).toContain("99.00");
+    expect(result.issues[0]).toContain("99,00");
   });
 
   it("retries 503 with backoff, then succeeds", async () => {

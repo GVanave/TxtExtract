@@ -82,23 +82,23 @@ const clean = (s: string) => s.trim() || null;
 
 export function draftToReceipt(draft: Draft): { receipt: Receipt | null; problems: string[] } {
   const problems: string[] = [];
-  if (!draft.store_name.trim()) problems.push("The store name is empty.");
-  if (!draft.date.trim()) problems.push("The date is missing.");
+  if (!draft.store_name.trim()) problems.push("Bitte trage das Geschäft ein.");
+  if (!draft.date.trim()) problems.push("Bitte trage das Datum ein.");
 
   const total = parseAmount(draft.total);
-  if (total === null || total === undefined) problems.push("The receipt total is not a valid amount.");
+  if (total === null || total === undefined) problems.push("Die Summe ist kein gültiger Betrag (Beispiel: 12,49).");
 
   const items: Receipt["line_items"] = [];
   draft.items.forEach((item, index) => {
     const isEmpty = !item.name.trim() && !item.raw_text.trim() && !item.total_price.trim();
     if (isEmpty) return;
-    const label = `Line ${index + 1}${item.name ? ` (${item.name})` : ""}`;
+    const label = item.name ? `„${item.name}“` : `Zeile ${index + 1}`;
     const lineTotal = parseAmount(item.total_price);
     const quantity = parseAmount(item.quantity);
     const unitPrice = parseAmount(item.unit_price);
-    if (lineTotal === null || lineTotal === undefined) problems.push(`${label}: the total is not a valid amount.`);
-    if (quantity === undefined) problems.push(`${label}: the quantity is not a number.`);
-    if (unitPrice === undefined) problems.push(`${label}: the unit price is not a valid amount.`);
+    if (lineTotal === null || lineTotal === undefined) problems.push(`${label}: Der Preis ist kein gültiger Betrag (Beispiel: 1,99).`);
+    if (quantity === undefined) problems.push(`${label}: Die Menge ist keine Zahl.`);
+    if (unitPrice === undefined) problems.push(`${label}: Der Stückpreis ist kein gültiger Betrag.`);
     if (lineTotal === null || lineTotal === undefined || quantity === undefined || unitPrice === undefined) return;
     const text = item.raw_text.trim() || item.name.trim();
     const lineType = LINE_TYPES.includes(item.line_type) ? item.line_type : "product";

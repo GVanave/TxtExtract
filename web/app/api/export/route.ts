@@ -7,7 +7,7 @@ export async function GET(request: Request) {
   const session = await requireSession();
   if (session instanceof Response) return session;
   const month = new URL(request.url).searchParams.get("month");
-  if (month !== null && !isMonth(month)) return Response.json({ error: "Use ?month=YYYY-MM." }, { status: 400 });
+  if (month !== null && !isMonth(month)) return Response.json({ error: "Ungültiger Monat (Format: JJJJ-MM)." }, { status: 400 });
 
   try {
     const receipts = await session.store.list(session.userId, month ? { month } : {});

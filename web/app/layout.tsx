@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: { default: "Kassenbon", template: "%s · Kassenbon" },
-  description: "Scan supermarket receipts and see where your money goes.",
+  description: "Kassenbons fotografieren und sehen, wofür du dein Geld ausgibst.",
   appleWebApp: { capable: true, title: "Kassenbon", statusBarStyle: "default" },
   icons: { icon: "/icon.svg", apple: "/apple-touch-icon.png" },
 };
@@ -21,7 +21,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className="h-full antialiased">
+    <html lang="de" className="h-full antialiased">
       <body className="min-h-full">{children}</body>
     </html>
   );

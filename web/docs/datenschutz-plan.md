@@ -43,9 +43,9 @@ jemandem mit Datenschutz-Erfahrung gegenlesen lassen.
   - [ ] Tabelle `invitations` (E-Mail, eingeladen von, Datum, angenommen am) oder Rolle `admin` für den Betreiber
   - [ ] Seite für den Betreiber: einladen, Einladung zurückziehen, Gast entfernen (= Konto löschen wie T2)
   - [ ] `ALLOWED_EMAILS` bleibt als Liste der Admins
-- [ ] **T5 Keine personenbezogenen Daten in Logs**
-  - [ ] Eine Log-Funktion, die nur Fehlerart, Meldung ohne Abfragewerte und eine Kennung schreibt; keine Abfrage-Parameter, keine Kassenbon-Inhalte, keine E-Mail-Adressen
-  - [ ] Test, dass ein Datenbankfehler keine Parameter ins Log schreibt
+- [x] **T5 Keine personenbezogenen Daten in Logs** (erledigt: `lib/log.ts`, alle Server-Logs laufen darüber)
+  - [x] Eine Log-Funktion, die nur Fehlerart, Meldung ohne Abfragewerte und eine Kennung schreibt; keine Abfrage-Parameter, keine Kassenbon-Inhalte, keine E-Mail-Adressen
+  - [x] Test, dass ein Datenbankfehler keine Parameter ins Log schreibt
 - [ ] **T6 Datenschutzerklärung und Kontakt als Seiten** (`/datenschutz`), ohne Anmeldung erreichbar, verlinkt auf der Anmeldeseite und in der Navigation
 
 ### Organisatorisch (Betreiber)
