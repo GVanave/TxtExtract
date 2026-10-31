@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import { shiftMonth, todayIso } from "@/lib/dates";
 import { receiptsWorkbook } from "@/lib/export";
-import { categoryBreakdown, categoryProducts, chartMonths, monthExtras, monthSummary } from "@/lib/month-stats";
+import { dayLabel } from "@/lib/format";
+import { categoryBreakdown, categoryProducts, chartMonths, dailyTotals, monthExtras, monthSummary } from "@/lib/month-stats";
 
 import { item, receipt, saved } from "./fixtures";
 
@@ -79,6 +80,33 @@ describe("categories", () => {
 
   it("totals Pfand, Leergut and discounts", () => {
     expect(monthExtras([...sep, ...oct])).toEqual({ pfandPaid: 25, pfandReturned: 75, discountsSaved: 39 });
+  });
+});
+
+describe("dailyTotals", () => {
+  const r = (date: string, total: number) => saved(receipt([item("X", total)], { date, total }));
+
+  it("gives one bar per day, adds up trips and finds the most expensive day", () => {
+    const { days, top, shoppingDays, pastDays } = dailyTotals("2026-09", [r("2026-09-03", 7.1), r("2026-09-17", 4.28), r("2026-09-17", 12.31)], "2026-10-31");
+    expect(days).toHaveLength(30);
+    expect(days[16]).toMatchObject({ date: "2026-09-17", cents: 1659, trips: 2, future: false });
+    expect(days[0]).toMatchObject({ cents: 0, trips: 0 });
+    expect(top).toBe("2026-09-17");
+    expect(shoppingDays).toBe(2);
+    expect(pastDays).toBe(30);
+  });
+
+  it("marks the days after today in the running month", () => {
+    const { days, top, pastDays } = dailyTotals("2026-02", [], "2026-02-10");
+    expect(days).toHaveLength(28);
+    expect(days[9].future).toBe(false);
+    expect(days[10].future).toBe(true);
+    expect(top).toBeNull();
+    expect(pastDays).toBe(10);
+  });
+
+  it("names the day in German", () => {
+    expect(dayLabel("2026-09-17")).toBe("Donnerstag, 17. September");
   });
 });
 

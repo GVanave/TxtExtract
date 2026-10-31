@@ -38,3 +38,12 @@ export function differenceInWords(cents: number): string {
   if (cents === 0) return "genauso viel";
   return `${euroFromCents(Math.abs(cents))} ${cents > 0 ? "mehr" : "weniger"}`;
 }
+
+const WEEKDAYS = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+
+/** "2026-09-17" -> "Donnerstag, 17. September" */
+export function dayLabel(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const weekday = WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+  return `${weekday}, ${d}. ${MONTHS[m - 1]}`;
+}

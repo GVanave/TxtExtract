@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { DayChart } from "@/components/day-chart";
 import { ExportButton } from "@/components/export-button";
 import { ChartIcon } from "@/components/icons";
 import { ReceiptList } from "@/components/receipt-list";
 import { CategoryBreakdown, MonthChart, MonthHeadline } from "@/components/spending";
 import { button, EmptyState, PageHeader } from "@/components/ui";
-import { isMonth, monthOf, shiftMonth, todayIso } from "@/lib/dates";
+import { daysInMonth, isMonth, monthOf, shiftMonth, todayIso } from "@/lib/dates";
 import { monthLabel, monthName } from "@/lib/format";
-import { categoryBreakdown, categoryProducts, chartMonths, monthExtras, monthSummary } from "@/lib/month-stats";
+import { categoryBreakdown, categoryProducts, chartMonths, dailyTotals, monthExtras, monthSummary } from "@/lib/month-stats";
 import { loadPageData } from "@/lib/page-data";
 
 export const metadata: Metadata = { title: "Ausgaben" };
@@ -46,8 +47,10 @@ export default async function SpendingPage(props: PageProps<"/spending">) {
   const summary = monthSummary(month, receipts, previous, today);
   // While a month is running, compare it with the same days of the month before, not the whole month.
   const comparable = summary.partial ? previous.filter((r) => Number(r.date!.slice(8, 10)) <= summary.partial!.throughDay) : previous;
-  const compareLabel = summary.partial
-    ? `Vergleich: 1. bis ${summary.partial.throughDay}. ${monthName(summary.previousMonth)}.`
+  // "1. bis 31. September" does not exist: once the running month is past the last day of the month before, compare whole months.
+  const samePeriod = summary.partial !== null && summary.partial.throughDay < daysInMonth(summary.previousMonth);
+  const compareLabel = samePeriod
+    ? `Vergleich: 1. bis ${summary.partial!.throughDay}. ${monthName(summary.previousMonth)}.`
     : `Vergleich mit ${monthName(summary.previousMonth)}.`;
   const category = typeof params.category === "string" ? params.category : null;
 
@@ -57,6 +60,7 @@ export default async function SpendingPage(props: PageProps<"/spending">) {
       <div className="space-y-4">
         <MonthChart bars={chart.bars} averageCents={chart.averageCents} selected={month} />
         <MonthHeadline summary={summary} averageCents={chart.averageCents} />
+        <DayChart key={month} month={month} running={summary.partial !== null} {...dailyTotals(month, receipts, today)} />
         <CategoryBreakdown
           month={month}
           rows={categoryBreakdown(receipts, comparable)}
