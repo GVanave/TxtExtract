@@ -1,5 +1,5 @@
 import { categoryName, CATEGORIES, UNCATEGORIZED } from "./categories";
-import { monthOf, shiftMonth } from "./dates";
+import { daysInMonth, monthOf, shiftMonth } from "./dates";
 import type { SavedReceipt } from "./receipt";
 
 /** Numbers for the Spending page, computed from saved receipts. All amounts in cents so sums are exact. */
@@ -117,4 +117,25 @@ export function monthExtras(receipts: SavedReceipt[]) {
     if (item.line_type === "discount") discountsSaved -= cents(item.total_price);
   }
   return { pfandPaid, pfandReturned, discountsSaved };
+}
+
+export type DayBar = { date: string; day: number; cents: number; trips: number; future: boolean };
+
+/** One bar per day of the month (an overview only: how much, how many trips). Days after today are marked. */
+export function dailyTotals(month: string, receipts: SavedReceipt[], today: string) {
+  const days: DayBar[] = Array.from({ length: daysInMonth(month) }, (_, i) => {
+    const date = `${month}-${String(i + 1).padStart(2, "0")}`;
+    return { date, day: i + 1, cents: 0, trips: 0, future: date > today };
+  });
+  for (const r of receipts) {
+    const day = days[Number(r.date?.slice(8, 10)) - 1];
+    if (!day || r.date?.slice(0, 7) !== month) continue;
+    day.cents += cents(r.total);
+    day.trips += 1;
+  }
+  const shopping = days.filter((d) => d.trips > 0);
+  // The highest day; on a tie the earlier one.
+  const top = shopping.reduce<DayBar | null>((best, d) => (!best || d.cents > best.cents ? d : best), null);
+  const pastDays = days.filter((d) => !d.future).length;
+  return { days, top: top?.date ?? null, shoppingDays: shopping.length, pastDays };
 }

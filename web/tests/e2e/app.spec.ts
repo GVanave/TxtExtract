@@ -139,6 +139,17 @@ test("spending: 5-month chart, tap a month, open a category", async ({ page, req
   await expect(page.getByText(/bei 2 Einkäufen/)).toBeVisible();
   await expect(page.getByText("Einkäufe im September 2026")).toBeVisible();
 
+  // Day by day: the most expensive day is shown first; tapping another day shows its amount.
+  await expect(page.getByText(/^Donnerstag, 3\. September: 7,10\s€\.$/)).toBeVisible();
+  await expect(page.getByText(/Eingekauft an 2 von 30 Tagen\. Am meisten: Donnerstag, 3\. September mit 7,10\s€\./)).toBeVisible();
+  await page.getByRole("button", { name: "Nächster Einkaufstag" }).click();
+  await expect(page.getByText(/^Sonntag, 20\. September: 4,28\s€\.$/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Nächster Einkaufstag" })).toBeDisabled();
+  await page.getByRole("button", { name: /^Sonntag, 20\. September: / }).click();
+  await expect(page.getByText(/^Sonntag, 20\. September: 4,28\s€\.$/)).toBeVisible();
+  await page.getByRole("button", { name: /^Freitag, 4\. September: kein Einkauf/ }).click();
+  await expect(page.getByText("Freitag, 4. September: kein Einkauf.")).toBeVisible();
+
   await page.getByRole("link", { name: /Snacks & Süßes/ }).click();
   await expect(page).toHaveURL(/category=snacks/);
   const products = page.getByRole("list", { name: "Produkte" });
