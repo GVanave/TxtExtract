@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { euro, germanDate } from "@/lib/format";
+import { isManual } from "@/lib/manual";
 import type { SavedReceipt } from "@/lib/receipt";
 
 import { ChevronIcon } from "./icons";
@@ -21,7 +22,8 @@ export function ReceiptList({ receipts }: { receipts: SavedReceipt[] }) {
               <p className="truncate text-lg font-medium">{r.store_name}</p>
               <p className="text-sm text-muted">
                 {germanDate(r.date)}
-                {r.time ? ` · ${r.time} Uhr` : ""} · {productCount(r)} {productCount(r) === 1 ? "Produkt" : "Produkte"}
+                {r.time ? ` · ${r.time} Uhr` : ""} ·{" "}
+                {isManual(r) ? "ohne Kassenbon" : `${productCount(r)} ${productCount(r) === 1 ? "Produkt" : "Produkte"}`}
               </p>
             </div>
             <div className="flex flex-col items-end gap-1">

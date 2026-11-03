@@ -13,7 +13,7 @@ import { LINE_TYPE_LABELS, LINE_TYPES, type LineType, type Receipt, type SavedRe
 import { SHARPNESS_THRESHOLD } from "@/lib/sharpness";
 import { validateReceipt } from "@/lib/validation";
 
-import { AlertIcon, CameraIcon, CheckIcon, PlusIcon, Spinner, TrashIcon } from "./icons";
+import { AlertIcon, CameraIcon, CheckIcon, PencilIcon, PlusIcon, Spinner, TrashIcon } from "./icons";
 import { button, Card, input, Notice } from "./ui";
 import { UndoBar } from "./undo-bar";
 
@@ -195,6 +195,9 @@ export function ScanFlow() {
               oder ein Foto bzw. PDF hochladen
             </button>
           </Card>
+          <Link href="/manual" className={`${button.secondary} w-full`}>
+            <PencilIcon size={20} /> Kein Kassenbon? Betrag eintippen
+          </Link>
           <ul className="space-y-2 text-base text-muted">
             {["Kassenbon flach hinlegen", "Den ganzen Kassenbon ins Bild nehmen", "Gutes Licht, keine Schatten"].map((tip) => (
               <li key={tip} className="flex items-center gap-3 rounded-xl bg-surface-2 px-4 py-3">

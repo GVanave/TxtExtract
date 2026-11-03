@@ -15,7 +15,7 @@ instead of "are you sure?" questions.
 
 | Page | What it does |
 |------|--------------|
-| **Scannen** | *Kassenbon fotografieren* (opens the phone camera) or *Foto bzw. PDF hochladen*. Blurry photos get a warning first. Gemini extracts store, date, items, Pfand, discounts, total **and a category per product**. You can correct anything; the "lines add up to the total" check updates as you type. Duplicates are detected. |
+| **Scannen** | *Kassenbon fotografieren* (opens the phone camera) or *Foto bzw. PDF hochladen*. Blurry photos get a warning first. No receipt? *Kein Kassenbon? Betrag eintippen* saves an amount by hand (no photo, no Gemini), always dated the day it is entered. Gemini extracts store, date, items, Pfand, discounts, total **and a category per product**. You can correct anything; the "lines add up to the total" check updates as you type. Duplicates are detected. |
 | **Einkäufe** | Everything saved, grouped by month. Open one to see its lines and change categories, or delete it (undo for a few seconds). **Als Excel herunterladen** downloads all receipts and lines (sheets *Einkäufe* and *Produkte*). |
 | **Ausgaben** | The last 5 months as bars (with the average of the finished months). Tap a month: total, trips, change vs the previous month (the running month is compared with the same days of the month before), a **day-by-day bar chart** (which days cost the most; tap a bar or use ‹ › to step through the shopping days), spending **by category**. Tap a category to see its products, with discounts counted against the product they belong to. Pfand is shown separately. |
 

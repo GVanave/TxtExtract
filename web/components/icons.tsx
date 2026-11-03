@@ -130,3 +130,10 @@ export function Logo({ size = 28 }: { size?: number }) {
     </svg>
   );
 }
+
+export const PencilIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4 20h4L19 9a2.1 2.1 0 0 0-4-4L4 16v4z" />
+    <path d="M13.5 6.5l4 4" />
+  </Icon>
+);
