@@ -35,6 +35,9 @@ export default async function ReceiptsPage() {
           <Link href="/" className={`${button.primary} mt-4`}>
             <CameraIcon size={22} /> Kassenbon fotografieren
           </Link>
+          <Link href="/manual" className={`${button.ghost} mt-2 underline underline-offset-4`}>
+            oder ohne Kassenbon eintragen
+          </Link>
         </EmptyState>
       ) : (
         <div className="space-y-6">

@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { BackIcon } from "@/components/icons";
 import { Card, Notice, ReviewBadge } from "@/components/ui";
 import { euro, germanDate } from "@/lib/format";
+import { isManual } from "@/lib/manual";
 import { loadPageData } from "@/lib/page-data";
 import { LINE_TYPE_LABELS } from "@/lib/receipt";
 
@@ -23,6 +24,8 @@ export default async function ReceiptPage(props: PageProps<"/receipts/[id]">) {
   const details = [germanDate(receipt.date), receipt.time ? `${receipt.time} Uhr` : null, receipt.payment_method, receipt.store_address].filter(Boolean);
   const printedOther = receipt.store_raw.trim().toUpperCase() !== receipt.store_name.toUpperCase();
 
+  const manual = isManual(receipt);
+
   return (
     <div className="space-y-4">
       <Link href="/receipts" className="inline-flex min-h-11 items-center gap-1 text-base text-muted hover:text-ink">
@@ -34,10 +37,11 @@ export default async function ReceiptPage(props: PageProps<"/receipts/[id]">) {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold tracking-tight">{receipt.store_name}</h1>
-              <ReviewBadge needsReview={receipt.needs_review} />
+              {!manual && <ReviewBadge needsReview={receipt.needs_review} />}
             </div>
             <p className="mt-1 text-base text-muted">{details.join(" · ")}</p>
-            {printedOther && <p className="mt-0.5 text-sm text-muted">Auf dem Kassenbon: „{receipt.store_raw}“</p>}
+            {manual && <p className="mt-0.5 text-sm text-muted">Ohne Kassenbon eingetragen</p>}
+            {printedOther && !manual && <p className="mt-0.5 text-sm text-muted">Auf dem Kassenbon: „{receipt.store_raw}“</p>}
           </div>
           <p className="tabular text-3xl font-bold tracking-tight">{euro(receipt.total)}</p>
         </div>

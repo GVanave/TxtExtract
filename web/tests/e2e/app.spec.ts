@@ -126,12 +126,16 @@ test("spending: 5-month chart, tap a month, open a category", async ({ page, req
     ]);
   }
   await seed(request, "Rewe Markt GmbH", "2026-09-20", [line("CHIPS", 1.79, { category: "snacks" }), line("BROT", 2.49)]);
+  // Plus one receipt today, so the running month is always on the chart, whatever day the test runs.
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date());
+  await seed(request, "LIDL", today, [line("MILCH", 1.09, { category: "dairy" })]);
 
   await page.goto("/spending");
   const bars = page.locator('a[href^="/spending?month="][aria-label]');
   await expect(bars).toHaveCount(5);
-  await expect(bars.first()).toHaveAttribute("href", "/spending?month=2026-06");
-  await expect(page.getByText("läuft noch").first()).toBeVisible(); // October is still running
+  await expect(bars.first()).toHaveAttribute("href", "/spending?month=2026-07");
+  await expect(bars.last()).toHaveAttribute("href", `/spending?month=${today.slice(0, 7)}`);
+  await expect(page.getByText("läuft noch").first()).toBeVisible(); // the current month is still running
 
   await page.getByRole("link", { name: /^September 2026: / }).click();
   await expect(page).toHaveURL(/month=2026-09/);
@@ -169,8 +173,47 @@ test("spending: 5-month chart, tap a month, open a category", async ({ page, req
   expect(book.getWorksheet("Produkte")!.rowCount).toBe(7);
 
   await page.goto("/receipts");
-  await expect(page.getByText(/^7 gespeichert/)).toBeVisible();
+  await expect(page.getByText(/^8 gespeichert/)).toBeVisible();
   await expect(page.getByRole("link", { name: "Als Excel herunterladen" })).toBeVisible();
+  await deleteEverything(request);
+});
+
+test("enter a purchase without a receipt; it is dated today", async ({ page, request }) => {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date());
+  const germanToday = today.split("-").reverse().join(".");
+
+  await page.goto("/");
+  await page.getByRole("link", { name: /Kein Kassenbon\? Betrag eintippen/ }).click();
+  await expect(page.getByRole("heading", { name: "Ohne Kassenbon eintragen" })).toBeVisible();
+  await expect(page.getByText(/^Datum: heute, /)).toBeVisible();
+
+  // A wrong amount is explained, not saved.
+  await page.getByRole("button", { name: "Speichern" }).click();
+  await expect(page.getByText("Bitte trage einen gültigen Betrag ein (zum Beispiel 12,49).")).toBeVisible();
+
+  await page.getByLabel("Betrag (€)").fill("4,20");
+  await page.getByLabel("Kategorie").selectOption("bakery");
+  await page.getByLabel(/^Was\?/).fill("Brötchen");
+  await page.getByLabel(/^Wo\?/).fill("Bäckerei Müller");
+  await page.getByRole("button", { name: "Speichern" }).click();
+  await expect(page.getByRole("heading", { name: "Gespeichert" })).toBeVisible();
+  await expect(page.getByText(/^4,20\s€$/)).toBeVisible();
+
+  await page.getByRole("link", { name: "Einkauf ansehen" }).click();
+  await expect(page.getByRole("heading", { name: "Bäckerei Müller" })).toBeVisible();
+  await expect(page.getByText("Ohne Kassenbon eingetragen")).toBeVisible();
+  await expect(page.getByText(new RegExp(`^${germanToday.replace(/\./g, "\\.")} · \\d{2}:\\d{2} Uhr$`))).toBeVisible();
+  await expect(page.getByLabel("Zeile 1 Kategorie")).toHaveValue("bakery");
+
+  // The browser cannot choose another date, and amounts are checked on the server too.
+  const sneaky = await request.post("/api/receipts/manual", { data: { amount: 2, date: "2020-01-01" } });
+  expect(sneaky.status()).toBe(201);
+  expect((await sneaky.json()).saved.date).toBe(today);
+  expect((await request.post("/api/receipts/manual", { data: { amount: -3 } })).status()).toBe(400);
+  expect((await request.post("/api/receipts/manual", { data: { amount: 1.999 } })).status()).toBe(400);
+
+  await page.goto("/receipts");
+  await expect(page.getByText("ohne Kassenbon").first()).toBeVisible();
   await deleteEverything(request);
 });
 
