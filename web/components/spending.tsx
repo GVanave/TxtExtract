@@ -4,6 +4,7 @@ import { categoryIcon } from "@/lib/categories";
 import { differenceInWords, euroFromCents as eur, monthLabel, monthName, monthShort } from "@/lib/format";
 import type { CategoryRow, MonthBar, MonthSummary, ProductRow } from "@/lib/month-stats";
 
+import { LinkPending } from "./link-pending";
 import { Card } from "./ui";
 
 /** "3,19 € mehr" in warning colour when spending went up, "0,61 € weniger" in green when it went down. */
@@ -48,8 +49,9 @@ export function MonthChart({ bars, averageCents, selected }: { bars: MonthBar[];
                 scroll={false}
                 aria-current={isSelected ? "true" : undefined}
                 aria-label={`${monthLabel(bar.month)}${bar.current ? " (läuft noch)" : ""}: ${eur(bar.totalCents)}, ${bar.trips} Einkäufe`}
-                className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end"
+                className="group relative flex h-full min-w-0 flex-1 flex-col items-center justify-end"
               >
+                <LinkPending />
                 <span className={`tabular mb-1 rounded bg-surface px-1 text-sm ${isSelected ? "font-bold text-ink" : "text-muted"}`}>
                   {Math.round(bar.totalCents / 100)} €
                 </span>
@@ -148,8 +150,9 @@ export function CategoryBreakdown(props: {
                   href={open ? `/spending?month=${props.month}` : `/spending?month=${props.month}&category=${row.slug}`}
                   scroll={false}
                   aria-expanded={open}
-                  className="-mx-2 block rounded-lg px-2 py-3 transition hover:bg-surface-2"
+                  className="relative -mx-2 block rounded-lg px-2 py-3 transition hover:bg-surface-2"
                 >
+                  <LinkPending />
                   <div className="flex items-center justify-between gap-3">
                     <span className={`flex min-w-0 items-center gap-2 text-lg ${open ? "font-semibold" : "font-medium"}`}>
                       <span aria-hidden="true">{categoryIcon(row.slug)}</span>

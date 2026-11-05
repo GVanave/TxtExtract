@@ -19,12 +19,14 @@ export default async function SpendingPage(props: PageProps<"/spending">) {
   const today = todayIso();
 
   const result = await loadPageData(async ({ store, userId }) => {
-    const chart = chartMonths(await store.monthTotals(userId), today);
-    const month = isMonth(params.month) ? params.month : (chart.bars.at(-1)?.month ?? monthOf(today));
-    const [receipts, previous] = await Promise.all([
-      store.list(userId, { month }),
-      store.list(userId, { month: shiftMonth(month, -1) }),
-    ]);
+    const read = (month: string) => Promise.all([store.list(userId, { month }), store.list(userId, { month: shiftMonth(month, -1) })]);
+    // Everything is read at once. Without a month in the address the newest month with receipts is shown, which is
+    // nearly always the current one: read that right away and only read again if the guess was wrong.
+    const guess = isMonth(params.month) ? params.month : monthOf(today);
+    const [totals, guessed] = await Promise.all([store.monthTotals(userId), read(guess)]);
+    const chart = chartMonths(totals, today);
+    const month = isMonth(params.month) ? params.month : (chart.bars.at(-1)?.month ?? guess);
+    const [receipts, previous] = month === guess ? guessed : await read(month);
     return { chart, month, receipts, previous };
   });
   if (!result.ok) return result.message;

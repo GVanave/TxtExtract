@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, type SQL, sql } from "drizzle-orm";
 
 import { categoryById, categoryBySlug, type CategorySlug, type CategorySource } from "../categories";
 import type { LineItem, Receipt, SavedLineItem, SavedReceipt } from "../receipt";
@@ -57,7 +57,11 @@ export class ReceiptStore {
 
   /** The user's id, creating the user on first sign-in. */
   async userId(email: string): Promise<string> {
+    const key = email.toLowerCase();
     const db = await this.db();
+    // Read first: after the first sign-in the user exists, so no write is needed.
+    const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, key));
+    if (existing) return existing.id;
     const [row] = await db
       .insert(users)
       .values({ email: email.toLowerCase() })
@@ -236,34 +240,36 @@ export class ReceiptStore {
     if (months && !months.length) return [];
     const conditions = [eq(receipts.userId, userId)];
     if (months) conditions.push(inArray(sql`to_char(${receipts.purchasedOn}, 'YYYY-MM')`, months));
-    const rows = await db
-      .select({ receipt: receipts, storeName: stores.name })
-      .from(receipts)
-      .innerJoin(stores, eq(stores.id, receipts.storeId))
-      .where(and(...conditions))
-      .orderBy(desc(receipts.purchasedOn), sql`${receipts.purchasedAt} DESC NULLS LAST`, desc(receipts.createdAt));
-    return this.withItems(db, rows);
+    return this.load(db, conditions);
   }
 
   async get(userId: string, id: string): Promise<SavedReceipt | null> {
     if (!isUuid(id)) return null;
     const db = await this.db();
-    const rows = await db
-      .select({ receipt: receipts, storeName: stores.name })
-      .from(receipts)
-      .innerJoin(stores, eq(stores.id, receipts.storeId))
-      .where(and(eq(receipts.userId, userId), eq(receipts.id, id)));
-    return (await this.withItems(db, rows))[0] ?? null;
+    return (await this.load(db, [eq(receipts.userId, userId), eq(receipts.id, id)]))[0] ?? null;
   }
 
-  private async withItems(
-    db: Db,
-    rows: { receipt: typeof receipts.$inferSelect; storeName: string }[],
-  ): Promise<SavedReceipt[]> {
-    const ids = rows.map((r) => r.receipt.id);
-    const items = ids.length
-      ? await db.select().from(receiptItems).where(inArray(receiptItems.receiptId, ids)).orderBy(asc(receiptItems.receiptId), asc(receiptItems.position))
-      : [];
+  /**
+   * Receipts matching `conditions` with their lines. Both queries run at the same time (the lines are found through
+   * the same conditions), so a page waits for one database round trip instead of two.
+   */
+  private async load(db: Db, conditions: SQL[]): Promise<SavedReceipt[]> {
+    const where = and(...conditions);
+    const [rows, lines] = await Promise.all([
+      db
+        .select({ receipt: receipts, storeName: stores.name })
+        .from(receipts)
+        .innerJoin(stores, eq(stores.id, receipts.storeId))
+        .where(where)
+        .orderBy(desc(receipts.purchasedOn), sql`${receipts.purchasedAt} DESC NULLS LAST`, desc(receipts.createdAt)),
+      db
+        .select({ item: receiptItems })
+        .from(receiptItems)
+        .innerJoin(receipts, eq(receipts.id, receiptItems.receiptId))
+        .where(where)
+        .orderBy(asc(receiptItems.receiptId), asc(receiptItems.position)),
+    ]);
+    const items = lines.map((l) => l.item);
     const byReceipt = new Map<string, SavedLineItem[]>();
     for (const i of items) {
       const list = byReceipt.get(i.receiptId) ?? [];
